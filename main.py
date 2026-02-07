@@ -1,48 +1,47 @@
-import os
-import requests
-import io
-import random
-import time
-import google.generativeai as genai
+import os, requests, io, random, time
+from google import genai
 from PIL import Image, ImageDraw, ImageFont
 
-# 1. Configuration
+# 1. Config (GitHub Secrets)
 FB_PAGE_ID = os.getenv("FB_PAGE_ID")
 FB_ACCESS_TOKEN = os.getenv("FB_ACCESS_TOKEN")
 GEMINI_KEY = os.getenv("GEMINI_API_KEY")
 
-genai.configure(api_key=GEMINI_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash')
+# 2. Setup New Gemini Client
+client = genai.Client(api_key=GEMINI_KEY)
 
 def get_content():
     try:
-        # Long caption aur 10+ hashtags ke liye instruction
         prompt = "Write 1 powerful motivational quote in HINDI. Then a long inspirational caption and 15 trending hashtags. Format: Quote | Caption | Tags"
-        response = model.generate_content(prompt)
+        response = client.models.generate_content(model="gemini-1.5-flash", contents=prompt)
         parts = response.text.strip().split('|')
         return parts[0].strip(), parts[1].strip(), parts[2].strip()
     except:
-        return "ख्वाब वो नहीं जो नींद में आएं, ख्वाब वो हैं जो नींद उड़ दें।", "Keep Grinding!", "#motivation #success #hindi #tags #trending"
+        return "कोशिश करने वालों की कभी हार नहीं होती।", "Never give up!", "#motivation #success #hindi #trending #goals"
 
-def get_image_with_retry():
-    # 3 baar koshish karega agar image load nahi hui
+def get_image():
+    # Pollinations fail hone par Picsum use karega (Zyada stable)
     for i in range(3):
         try:
-            seed = random.randint(1, 1000000)
-            url = f"https://image.pollinations.ai/prompt/dark-mountain-professional-background?width=1080&height=1080&nologo=true&seed={seed}"
-            res = requests.get(url, timeout=30)
+            seed = random.randint(1, 1000)
+            # Stable Source: Picsum (Nature/Dark images)
+            url = f"https://picsum.photos/seed/{seed}/1080/1080"
+            res = requests.get(url, timeout=20)
             img = Image.open(io.BytesIO(res.content))
             return img
         except:
-            print(f"Image retry {i+1}...")
-            time.sleep(3)
-    raise Exception("Pollinations AI not responding properly")
+            time.sleep(2)
+    raise Exception("Image sources are down")
 
 def create_image(quote):
-    img = get_image_with_retry()
+    img = get_image()
+    # Image ko thoda dark karna taaki text dikhe
+    overlay = Image.new('RGBA', img.size, (0,0,0,100))
+    img = Image.alpha_composite(img.convert('RGBA'), overlay).convert('RGB')
+    
     draw = ImageDraw.Draw(img)
-
-    # 2. Hindi Font Setup (Size 120 - Kafi Bada)
+    
+    # 3. Hindi Font Setup (Extra Large Size 120)
     try:
         font_url = "https://github.com/googlefonts/noto-fonts/raw/main/hinted/ttf/NotoSans/NotoSans-Bold.ttf"
         font_data = requests.get(font_url).content
@@ -61,12 +60,12 @@ def create_image(quote):
             current_line = word + " "
     lines.append(current_line)
 
-    # Text Drawing with Shadow and Gold Color
-    y_text = 540 - (len(lines) * 65)
+    # Drawing Text (Gold color with Shadow)
+    y_text = 540 - (len(lines) * 70)
     for line in lines:
         draw.text((545, y_text + 5), line.strip(), fill=(0, 0, 0), font=font, anchor="mm") # Shadow
         draw.text((540, y_text), line.strip(), fill=(255, 215, 0), font=font, anchor="mm") # Gold Text
-        y_text += 140
+        y_text += 150
     return img
 
 def post_to_fb(image_obj, message):
@@ -76,14 +75,14 @@ def post_to_fb(image_obj, message):
     payload = {'message': message, 'access_token': FB_ACCESS_TOKEN}
     files = {'source': ('post.jpg', img_byte_arr.getvalue(), 'image/jpeg')}
     r = requests.post(url, data=payload, files=files)
-    print("FB Response:", r.json())
+    print("Post Response:", r.json())
 
 if __name__ == "__main__":
     try:
         q, c, t = get_content()
         img = create_image(q)
-        # Bada caption aur 10+ tags
+        # Bada caption aur 15 tags
         post_to_fb(img, f"{c}\n\n.\n.\n{t}")
-        print("Successfully Posted!")
+        print("Success!")
     except Exception as e:
         print(f"Error: {e}")
