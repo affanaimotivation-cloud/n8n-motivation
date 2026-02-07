@@ -1,72 +1,62 @@
-import os, requests, io, random, time
-# Purane import ko hata kar ye naya wala use karein
-from google import genai
+import os
+import requests
+import io
+import random
+import google.generativeai as genai  # Yeh sahi tareeka hai import karne ka
 from PIL import Image, ImageDraw, ImageFont
 
-# 1. Config (GitHub Secrets)
+# 1. Config
 FB_PAGE_ID = os.getenv("FB_PAGE_ID")
 FB_ACCESS_TOKEN = os.getenv("FB_ACCESS_TOKEN")
 GEMINI_KEY = os.getenv("GEMINI_API_KEY")
 
-# 2. Setup New Gemini Client (Correct Syntax)
-client = genai.Client(api_key=GEMINI_KEY)
+genai.configure(api_key=GEMINI_KEY)
+model = genai.GenerativeModel('gemini-1.5-flash')
 
 def get_content():
     try:
-        # Long caption aur 15 tags ke liye request
-        prompt = "Write 1 powerful motivational quote in HINDI. Then a long inspirational caption and 15 trending hashtags. Format: Quote | Caption | Tags"
-        response = client.models.generate_content(model="gemini-1.5-flash", contents=prompt)
+        # Gemini ko clear instruction: Bada caption aur 15 tags
+        prompt = "Write 1 powerful motivational quote in HINDI. Then write a 5-line inspirational caption and 15 trending hashtags. Format: Quote | Caption | Tags"
+        response = model.generate_content(prompt)
         parts = response.text.strip().split('|')
         return parts[0].strip(), parts[1].strip(), parts[2].strip()
     except:
-        return "सफलता का कोई मंत्र नहीं है, यह सिर्फ मेहनत का फल है।", "Keep Grinding!", "#motivation #success #hindi #trending"
-
-def get_image():
-    # Stable source Picsum use kar rahe hain taaki error na aaye
-    for i in range(3):
-        try:
-            seed = random.randint(1, 1000)
-            url = f"https://picsum.photos/seed/{seed}/1080/1080"
-            res = requests.get(url, timeout=20)
-            img = Image.open(io.BytesIO(res.content))
-            return img
-        except:
-            time.sleep(2)
-    raise Exception("Image sources down")
+        return "ख्वाब वो नहीं जो नींद में आएं, ख्वाब वो हैं जो नींद उड़ दें।", "Keep Pushing!", "#motivation #success #hindi #tags"
 
 def create_image(quote):
-    img = get_image()
-    # Image ko thoda dark overlay dena taaki text chamke
-    overlay = Image.new('RGBA', img.size, (0,0,0,120))
-    img = Image.alpha_composite(img.convert('RGBA'), overlay).convert('RGB')
-    
+    seed = random.randint(1, 1000000)
+    # Wahi stable URL jo pehle kaam kar raha tha
+    url = f"https://image.pollinations.ai/prompt/dark-minimalist-background?width=1080&height=1080&nologo=true&seed={seed}"
+    img = Image.open(io.BytesIO(requests.get(url).content))
     draw = ImageDraw.Draw(img)
-    
-    # 3. Hindi Font Setup (Bada Size 120)
+
+    # 2. Hindi Font Setup (Extra Large Size: 120)
     try:
         font_url = "https://github.com/googlefonts/noto-fonts/raw/main/hinted/ttf/NotoSans/NotoSans-Bold.ttf"
-        font_data = requests.get(font_url).content
-        font = ImageFont.truetype(io.BytesIO(font_data), 120)
+        font_res = requests.get(font_url).content
+        font = ImageFont.truetype(io.BytesIO(font_res), 120)
     except:
         font = ImageFont.load_default()
 
-    # Text wrapping taaki text bada ho kar bahar na nikle
+    # Text wrapping taaki bada font screen se bahar na jaye
     words = quote.split()
     lines, current_line = [], ""
     for word in words:
-        if len(current_line + word) < 15:
+        if len(current_line + word) < 12:
             current_line += word + " "
         else:
             lines.append(current_line)
             current_line = word + " "
     lines.append(current_line)
 
-    # Drawing Text with Shadow and Gold Color
+    # 3. Drawing Text (Gold Color + Dark Shadow)
     y_text = 540 - (len(lines) * 75)
     for line in lines:
-        draw.text((545, y_text + 5), line.strip(), fill=(0, 0, 0), font=font, anchor="mm") # Shadow
-        draw.text((540, y_text), line.strip(), fill=(255, 215, 0), font=font, anchor="mm") # Gold Text
-        y_text += 150
+        # Shadow
+        draw.text((544, y_text + 4), line.strip(), fill=(0, 0, 0), font=font, anchor="mm")
+        # Main Gold Text
+        draw.text((540, y_text), line.strip(), fill=(255, 215, 0), font=font, anchor="mm")
+        y_text += 160
     return img
 
 def post_to_fb(image_obj, message):
@@ -76,14 +66,12 @@ def post_to_fb(image_obj, message):
     payload = {'message': message, 'access_token': FB_ACCESS_TOKEN}
     files = {'source': ('post.jpg', img_byte_arr.getvalue(), 'image/jpeg')}
     r = requests.post(url, data=payload, files=files)
-    print("Post Response:", r.json())
+    print("FB Response:", r.json())
 
 if __name__ == "__main__":
-    try:
-        q, c, t = get_content()
-        img = create_image(q)
-        # Bada caption aur 15 tags
-        post_to_fb(img, f"{c}\n\n.\n.\n{t}")
-        print("Success!")
-    except Exception as e:
-        print(f"Error occurred: {e}")
+    q, c, t = get_content()
+    # Caption, Gap aur Hashtags ko jodan
+    full_text = f"{c}\n\n.\n.\n{t}"
+    print(f"Generating for: {q}")
+    img = create_image(q)
+    post_to_fb(img, full_text)
