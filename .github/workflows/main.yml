@@ -1,0 +1,23 @@
+name: FB Auto Post
+on:
+  schedule:
+    - cron: '30 3 * * *'  # 7:30 AM IST
+    - cron: '30 12 * * *' # 8:30 PM IST
+  workflow_dispatch:      # Manual button
+jobs:
+  run-poster:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      - name: Run
+        env:
+          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+          FB_ACCESS_TOKEN: ${{ secrets.FB_ACCESS_TOKEN }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          pip install -r requirements.txt
+          python main.py
