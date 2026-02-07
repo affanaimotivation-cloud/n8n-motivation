@@ -6,7 +6,7 @@ import time
 import google.generativeai as genai
 from PIL import Image, ImageDraw, ImageFont
 
-# 1. Configuration (Secrets)
+# 1. Configuration
 FB_PAGE_ID = os.getenv("FB_PAGE_ID")
 FB_ACCESS_TOKEN = os.getenv("FB_ACCESS_TOKEN")
 GEMINI_KEY = os.getenv("GEMINI_API_KEY")
@@ -16,33 +16,37 @@ model = genai.GenerativeModel('gemini-1.5-flash')
 
 def get_content():
     try:
-        # Long Caption aur 15+ Hashtags ke liye instruction
-        prompt = "Write 1 powerful motivational quote in HINDI. Then write a 5-line inspirational caption and 15 trending hashtags. Format: Quote | Caption | Tags"
+        prompt = "Write 1 short powerful motivational quote in HINDI. Then write a 5-line inspirational caption and 15 trending hashtags. Format: Quote | Caption | Tags"
         response = model.generate_content(prompt)
         parts = response.text.strip().split('|')
         return parts[0].strip(), parts[1].strip(), parts[2].strip()
     except:
-        return "ख्वाब वो नहीं जो नींद में आएं, ख्वाब वो हैं जो नींद उड़ा दें।", "Stay Focused!", "#motivation #success #hindi #tags"
+        return "ख्वाब वो नहीं जो नींद में आएं, ख्वाब वो हैं जो नींद उड़ा दें।", "Keep Pushing!", "#motivation #success #hindi"
 
-def get_image_with_retry():
-    # Retry mechanism taaki UnidentifiedImageError na aaye
+def get_image_safe():
+    # Pollinations ka alternative URL aur Retry logic
     for i in range(3):
         try:
             seed = random.randint(1, 999999)
-            url = f"https://image.pollinations.ai/prompt/dark-nature-mountain-motivation-background?width=1080&height=1080&nologo=true&seed={seed}"
-            response = requests.get(url, timeout=30)
-            img = Image.open(io.BytesIO(response.content))
-            return img
+            # URL ko simplify kiya taaki error na aaye
+            url = f"https://pollinations.ai/p/dark-mountain-nature-background?width=1080&height=1080&seed={seed}"
+            response = requests.get(url, timeout=40)
+            if response.status_code == 200:
+                img = Image.open(io.BytesIO(response.content))
+                return img
         except Exception as e:
-            print(f"Attempt {i+1} failed: {e}. Retrying in 5 seconds...")
+            print(f"Attempt {i+1} failed. Retrying...")
             time.sleep(5)
-    raise Exception("Could not download image after 3 attempts")
+    
+    # Fallback: Agar kuch kaam na kare toh Dark Blue background banaye
+    print("Using fallback solid background...")
+    return Image.new('RGB', (1080, 1080), color=(20, 20, 40))
 
 def create_image(quote):
-    img = get_image_with_retry()
+    img = get_image_safe()
     draw = ImageDraw.Draw(img)
 
-    # 2. Hindi Font (Extra Large Size: 130)
+    # 2. Hindi Font (Size 130)
     try:
         font_url = "https://github.com/googlefonts/noto-fonts/raw/main/hinted/ttf/NotoSans/NotoSans-Bold.ttf"
         font_res = requests.get(font_url).content
@@ -50,28 +54,33 @@ def create_image(quote):
     except:
         font = ImageFont.load_default()
 
-    # Text wrapping logic (Bade font ke liye lines choti karni padengi)
+    # Text wrapping logic
     words = quote.split()
     lines, current_line = [], ""
     for word in words:
-        if len(current_line + word) < 10: 
+        if len(current_line + word) < 12:
             current_line += word + " "
         else:
             lines.append(current_line)
             current_line = word + " "
     lines.append(current_line)
 
-    # 3. Drawing Text (Gold Color + Shadow)
-    y_text = 540 - (len(lines) * 80)
+    # 3. Drawing Text (Gold + Shadow)
+    y_text = 540 - (len(lines) * 85)
     for line in lines:
-        draw.text((545, y_text + 5), line.strip(), fill=(0, 0, 0), font=font, anchor="mm") # Shadow
-        draw.text((540, y_text), line.strip(), fill=(255, 215, 0), font=font, anchor="mm") # Gold Text
-        y_text += 170
+        draw.text((545, y_text + 5), line.strip(), fill=(0, 0, 0), font=font, anchor="mm")
+        draw.text((540, y_text), line.strip(), fill=(255, 215, 0), font=font, anchor="mm")
+        y_text += 180
+    
+    # Niche handle add kar diya hai
+    handle_font = ImageFont.load_default() # Chota handle niche
+    draw.text((540, 1000), "@affan.ai.motivation", fill=(200, 200, 200), anchor="mm")
+    
     return img
 
 def post_to_fb(image_obj, message):
     img_byte_arr = io.BytesIO()
-    image_obj.save(img_byte_arr, format='JPEG', quality=95)
+    image_obj.save(img_byte_arr, format='JPEG', quality=90)
     url = f"https://graph.facebook.com/{FB_PAGE_ID}/photos"
     payload = {'message': message, 'access_token': FB_ACCESS_TOKEN}
     files = {'source': ('post.jpg', img_byte_arr.getvalue(), 'image/jpeg')}
@@ -82,9 +91,8 @@ if __name__ == "__main__":
     try:
         quote, caption, tags = get_content()
         full_text = f"{caption}\n\n.\n.\n{tags}"
-        print(f"Generating for: {quote}")
         img = create_image(quote)
         post_to_fb(img, full_text)
-        print("Successfully Posted!")
+        print("Done!")
     except Exception as e:
-        print(f"Final Execution Error: {e}")
+        print(f"Error: {e}")
