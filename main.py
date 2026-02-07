@@ -1,18 +1,25 @@
-import os, requests, io, random
-import google.generativeai as genai
+import os
+import requests
+import io
+import random
+from google import genai
 from PIL import Image, ImageDraw, ImageFont
 
-# API Configs from your GitHub Secrets
+# API Configs
 FB_PAGE_ID = os.getenv("FB_PAGE_ID")
 FB_ACCESS_TOKEN = os.getenv("FB_ACCESS_TOKEN")
 GEMINI_KEY = os.getenv("GEMINI_API_KEY")
 
-genai.configure(api_key=GEMINI_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash')
+# New SDK Client Setup
+client = genai.Client(api_key=GEMINI_KEY)
 
 def get_content():
     prompt = "Write a 1-line powerful motivational quote. Also, give a 1-sentence image background prompt. Format: Quote | ImagePrompt"
-    response = model.generate_content(prompt)
+    # Using the latest stable model
+    response = client.models.generate_content(
+        model="gemini-1.5-flash",
+        contents=prompt
+    )
     parts = response.text.split('|')
     return (parts[0].strip(), parts[1].strip()) if len(parts) > 1 else (response.text, "success motivation background")
 
@@ -22,6 +29,7 @@ def create_image(quote, img_prompt):
     img = Image.open(io.BytesIO(requests.get(url).content))
     draw = ImageDraw.Draw(img)
     font = ImageFont.load_default() 
+    # Text in center
     draw.text((540, 540), quote, fill=(255, 215, 0), anchor="mm")
     return img
 
@@ -40,4 +48,4 @@ try:
     post_to_fb(img, q)
     print("Post Successful!")
 except Exception as e:
-    print(f"Error: {e}")
+    print(f"Error occurred: {e}")
