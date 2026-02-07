@@ -6,7 +6,7 @@ import time
 import google.generativeai as genai
 from PIL import Image, ImageDraw, ImageFont
 
-# 1. Configuration (Secrets)
+# 1. Config (Secrets)
 FB_PAGE_ID = os.getenv("FB_PAGE_ID")
 FB_ACCESS_TOKEN = os.getenv("FB_ACCESS_TOKEN")
 GEMINI_KEY = os.getenv("GEMINI_API_KEY")
@@ -17,45 +17,40 @@ model = genai.GenerativeModel('gemini-1.5-flash')
 def get_content():
     try:
         # Long Caption aur 15+ Hashtags ke liye instruction
-        prompt = "Write 1 powerful motivational quote in HINDI. Then write a 5-line inspirational caption and 15 trending hashtags. Format: Quote | Caption | Tags"
+        prompt = "Write 1 powerful motivational quote in HINDI. Then write a 6-line inspirational caption and 20 trending hashtags. Format: Quote | Caption | Tags"
         response = model.generate_content(prompt)
         parts = response.text.strip().split('|')
         return parts[0].strip(), parts[1].strip(), parts[2].strip()
     except:
-        return "ख्वाब वो नहीं जो नींद में आएं, ख्वाब वो हैं जो नींद उड़ा दें।", "Stay Focused!", "#motivation #success #hindi"
+        return "ख्वाब वो नहीं जो नींद में आएं, ख्वाब वो हैं जो नींद उड़ा दें।", "Stay Focused and keep grinding!", "#motivation #success #hindi #goals #inspiration"
 
 def get_image_safe():
-    # Retry mechanism taaki UnidentifiedImageError na aaye
+    # Retry system for Pollinations AI
     for i in range(3):
         try:
             seed = random.randint(1, 999999)
-            url = f"https://pollinations.ai/p/dark-nature-mountain-motivation-background?width=1080&height=1080&seed={seed}"
+            url = f"https://pollinations.ai/p/dark-mountain-nature-background?width=1080&height=1080&seed={seed}"
             response = requests.get(url, timeout=30)
             if response.status_code == 200:
                 return Image.open(io.BytesIO(response.content))
         except:
-            print(f"Attempt {i+1} failed. Retrying...")
             time.sleep(5)
-    
-    # Fallback: Agar generator fail ho toh solid color background banaye
-    print("Using fallback background...")
+    # Backup: Solid Dark Background
     return Image.new('RGB', (1080, 1080), color=(10, 10, 30))
 
 def create_image(quote):
     img = get_image_safe()
     draw = ImageDraw.Draw(img)
 
-    # 2. Hindi Font Fix (Boxes hatane ke liye Noto Sans download ho raha hai)
+    # 2. Hindi Font Fix (Boxes hatane ke liye)
     try:
-        # Noto Sans Hindi font download link
         font_url = "https://github.com/googlefonts/noto-fonts/raw/main/hinted/ttf/NotoSans/NotoSans-Bold.ttf"
         font_res = requests.get(font_url).content
-        font = ImageFont.truetype(io.BytesIO(font_res), 120) # Bada Font Size
+        font = ImageFont.truetype(io.BytesIO(font_res), 120) # Bada Size
     except:
-        print("Font download failed, using default...")
         font = ImageFont.load_default()
 
-    # Text wrapping logic taaki font bada dikhe
+    # Text wrapping
     words = quote.split()
     lines, current_line = [], ""
     for word in words:
@@ -66,15 +61,13 @@ def create_image(quote):
             current_line = word + " "
     lines.append(current_line)
 
-    # 3. Drawing Text (Gold Color + Shadow)
+    # 3. Draw Text (Gold + Shadow)
     y_text = 540 - (len(lines) * 80)
     for line in lines:
         draw.text((545, y_text + 5), line.strip(), fill=(0, 0, 0), font=font, anchor="mm") # Shadow
-        draw.text((540, y_text), line.strip(), fill=(255, 215, 0), font=font, anchor="mm") # Gold Text
+        draw.text((540, y_text), line.strip(), fill=(255, 215, 0), font=font, anchor="mm") # Gold
         y_text += 160
     
-    # Handle add karna niche
-    draw.text((540, 1020), "@affan.ai.motivation", fill=(200, 200, 200), anchor="mm")
     return img
 
 def post_to_fb(image_obj, message):
@@ -84,14 +77,11 @@ def post_to_fb(image_obj, message):
     payload = {'message': message, 'access_token': FB_ACCESS_TOKEN}
     files = {'source': ('post.jpg', img_byte_arr.getvalue(), 'image/jpeg')}
     r = requests.post(url, data=payload, files=files)
-    print("FB Response:", r.json())
+    print("FB Result:", r.json())
 
 if __name__ == "__main__":
-    try:
-        quote, caption, tags = get_content()
-        full_text = f"{caption}\n\n.\n.\n{tags}"
-        img = create_image(quote)
-        post_to_fb(img, full_text)
-        print("Post Success!")
-    except Exception as e:
-        print(f"Error: {e}")
+    q, c, t = get_content()
+    # Pura Caption aur Hashtags merge karna
+    full_text = f"{c}\n\n.\n.\n{t}"
+    img = create_image(q)
+    post_to_fb(img, full_text)
