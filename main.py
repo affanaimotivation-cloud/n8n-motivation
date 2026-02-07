@@ -14,53 +14,40 @@ genai.configure(api_key=GEMINI_KEY)
 model = genai.GenerativeModel('gemini-1.5-flash')
 
 def get_content():
-    try:
-        # Gemini se Hindi Quote aur Hashtags maangna
-        prompt = "Write 1 powerful motivational quote in HINDI. Then provide a caption and 5 trending hashtags. Format: Quote | Caption | Hashtags"
-        response = model.generate_content(prompt)
-        parts = response.text.strip().split('|')
-        return parts[0].strip(), parts[1].strip(), parts[2].strip()
-    except:
-        return "सफलता की शुरुआत कोशिश से होती है।", "Keep Pushing!", "#motivation #hindi #success"
-
-def get_font():
-    # Hindi support ke liye Google Font download karna
-    font_url = "https://github.com/googlefonts/noto-fonts/raw/main/hinted/ttf/NotoSans/NotoSans-Bold.ttf"
-    r = requests.get(font_url)
-    return io.BytesIO(r.content)
+    prompt = "Write 1 powerful short motivational quote in HINDI. Format: Quote | Caption | Tags"
+    response = model.generate_content(prompt)
+    parts = response.text.strip().split('|')
+    return parts[0].strip(), parts[1].strip(), parts[2].strip()
 
 def create_image(quote):
-    seed = random.randint(1, 999999)
-    img_url = f"https://image.pollinations.ai/prompt/dark-motivational-background?width=1080&height=1080&nologo=true&seed={seed}"
-    img = Image.open(io.BytesIO(requests.get(img_url).content))
-    draw = ImageDraw.Draw(img)
+    seed = random.randint(1, 1000000)
+    # Wahi Pollinations URL jo pehle success hua tha
+    url = f"https://image.pollinations.ai/prompt/nature-galaxy-dark-background?width=1080&height=1080&nologo=true&seed={seed}"
     
-    # Font size 80 (Bada text)
-    try:
-        font_data = get_font()
-        font = ImageFont.truetype(font_data, 80)
-    except:
-        font = ImageFont.load_default()
+    img_data = requests.get(url).content
+    img = Image.open(io.BytesIO(img_data))
+    draw = ImageDraw.Draw(img)
 
-    # Text ko wrap karna aur center mein daalna
-    w, h = 1080, 1080
-    draw.text((w/2, h/2), quote, fill=(255, 255, 255), font=font, anchor="mm", align="center")
+    # Font Setup (Hindi ke liye Noto Sans download ho raha hai)
+    font_url = "https://github.com/googlefonts/noto-fonts/raw/main/hinted/ttf/NotoSans/NotoSans-Bold.ttf"
+    font_res = requests.get(font_url).content
+    font = ImageFont.truetype(io.BytesIO(font_res), 100) # Size bada kar diya hai
+
+    # Drawing Text (Gold color with Shadow)
+    draw.text((543, 543), quote, fill=(0, 0, 0), font=font, anchor="mm") # Shadow
+    draw.text((540, 540), quote, fill=(255, 215, 0), font=font, anchor="mm") # Gold Text
     return img
 
 def post_to_fb(image_obj, message):
     img_byte_arr = io.BytesIO()
     image_obj.save(img_byte_arr, format='JPEG')
     url = f"https://graph.facebook.com/{FB_PAGE_ID}/photos"
-    # Caption aur Hashtags 'message' mein jayenge
-    payload = {'message': message, 'access_token': FB_ACCESS_TOKEN}
+    data = {'message': message, 'access_token': FB_ACCESS_TOKEN}
     files = {'source': ('post.jpg', img_byte_arr.getvalue(), 'image/jpeg')}
-    r = requests.post(url, data=payload, files=files)
-    print("FB Response:", r.json())
+    requests.post(url, files=files, data=data)
 
 if __name__ == "__main__":
-    quote, caption, tags = get_content()
-    full_message = f"{caption}\n\n{tags}"
-    print(f"Post Content: {quote}")
-    
-    img = create_image(quote)
-    post_to_fb(img, full_message)
+    q, c, t = get_content()
+    img = create_image(q)
+    post_to_fb(img, f"{c}\n\n{t}")
+    print("Post Successfully Done!")
