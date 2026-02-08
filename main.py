@@ -4,106 +4,94 @@ import io
 import random
 import time
 import google.generativeai as genai
-from PIL import Image, ImageDraw, ImageFont, ImageFilter
+from PIL import Image, ImageDraw, ImageFont
 
-# 1. Configuration (Secrets from GitHub)
+# Secrets Setup
 FB_PAGE_ID = os.getenv("FB_PAGE_ID")
 FB_ACCESS_TOKEN = os.getenv("FB_ACCESS_TOKEN")
 GEMINI_KEY = os.getenv("GEMINI_API_KEY")
-UNSPLASH_KEY = os.getenv("UNSPLASH_ACCESS_KEY") # Unsplash key ab use hogi
+UNSPLASH_KEY = os.getenv("UNSPLASH_ACCESS_KEY")
 
 genai.configure(api_key=GEMINI_KEY)
 model = genai.GenerativeModel('gemini-1.5-flash')
 
 def get_content():
+    # Randomness badhane ke liye seed ka use
+    random_topics = ["Hard work", "Never give up", "Success mindset", "Time management", "Confidence", "Discipline"]
+    topic = random.choice(random_topics)
+    
     try:
-        # Prompt ko aur achha kiya hai takki lamba aur behtar caption + 25+ hashtags aayein
-        prompt = "Write 1 powerful and deep motivational quote in HINDI. Then write a 8-line highly inspirational and engaging caption, followed by at least 25 trending and relevant hashtags. Format: Quote | Caption | Tags"
+        # Gemini ko har baar alag topic dene ke liye prompt badla hai
+        prompt = f"Write a unique, deep motivational quote in HINDI about '{topic}'. Then write an 8-line emotional caption and 30 trending hashtags. Format: Quote | Caption | Tags. Do not repeat previous quotes."
         response = model.generate_content(prompt)
         parts = response.text.strip().split('|')
         return parts[0].strip(), parts[1].strip(), parts[2].strip()
-    except Exception as e:
-        print(f"Gemini content error: {e}")
-        return "सफलता के लिए सबसे महत्वपूर्ण है निरंतर प्रयास।", "हर छोटा कदम एक दिन बड़ी मंज़िल तक पहुंचाता है।", "#motivation #success #hindi #inspiration #goals"
+    except:
+        return "नया सवेरा, नयी उम्मीद।", "Aaj ka din aapka hai!", "#motivation #newday"
 
 def get_premium_image():
-    # Unsplash se humans, nature, space, urban motivation images search karna
     try:
-        # Keywords mein "person", "man", "woman", "fitness" add kiye hain
-        query = random.choice([
-            "person working hard", "motivational success", "entrepreneur mindset", 
-            "nature", "mountains", "galaxy", "ocean", "dark-forest", 
-            "urban success", "fitness motivation", "woman empowerment", "man achievement"
-        ])
-        url = f"https://api.unsplash.com/photos/random?query={query}&orientation=squarish&client_id={UNSPLASH_KEY}"
-        response = requests.get(url, timeout=25).json() # Timeout badha diya
+        # Humans, Space aur Nature ka mix search
+        queries = ["hardworking person", "office success", "space galaxy", "mountain climber", "gym motivation", "urban lifestyle"]
+        q = random.choice(queries)
+        
+        # Sigle random photo ke liye 'sig' parameter add kiya hai taaki image repeat na ho
+        url = f"https://api.unsplash.com/photos/random?query={q}&orientation=squarish&client_id={UNSPLASH_KEY}&sig={random.randint(1, 999)}"
+        
+        response = requests.get(url, timeout=30).json()
         image_url = response['urls']['regular']
-        img_data = requests.get(image_url, timeout=25).content
+        img_data = requests.get(image_url).content
         return Image.open(io.BytesIO(img_data)).resize((1080, 1080))
-    except Exception as e:
-        print(f"Unsplash Image Error: {e}. Using solid fallback for safety.")
-        # Agar Unsplash fail ho toh dark color background
-        return Image.new('RGB', (1080, 1080), color=(15, 20, 35))
+    except:
+        # Fallback agar API limit hit ho jaye
+        return Image.new('RGB', (1080, 1080), color=(20, 20, 40))
 
 def create_image(quote):
-    # Image lene ke baad use thoda dark aur blur karna taaki text saaf dikhe
     img = get_premium_image()
     
-    # Readability ke liye Dark Overlay (Halka kaala parda)
-    overlay = Image.new('RGBA', img.size, (0, 0, 0, 150)) # Thoda aur dark kiya
+    # Text ke piche halka black tint taaki saaf dikhe
+    overlay = Image.new('RGBA', img.size, (0, 0, 0, 130))
     img.paste(overlay, (0,0), overlay)
-
+    
     draw = ImageDraw.Draw(img)
-
-    # 2. Hindi Font Fix (Using your uploaded hindifont.ttf)
+    
     try:
-        font_path = "hindifont.ttf" 
-        font = ImageFont.truetype(font_path, 110) # Bada aur clear size
+        font_path = "hindifont.ttf"
+        font = ImageFont.truetype(font_path, 110)
     except:
-        print("Font file 'hindifont.ttf' nahi mili! Check your GitHub repo.")
         font = ImageFont.load_default()
 
-    # Text wrapping logic
+    # Text wrapping
     words = quote.split()
     lines, current_line = [], ""
     for word in words:
-        if len(current_line + word) < 12: 
+        if len(current_line + word) < 13:
             current_line += word + " "
         else:
             lines.append(current_line)
             current_line = word + " "
     lines.append(current_line)
 
-    # 3. Draw Text (Gold Color + Shadow)
-    y_text = 540 - (len(lines) * 85)
+    # Drawing text
+    y_text = 540 - (len(lines) * 90)
     for line in lines:
-        # Shadow (Black)
-        draw.text((546, y_text + 6), line.strip(), fill=(0, 0, 0), font=font, anchor="mm")
-        # Main Text (Gold)
+        draw.text((545, y_text + 5), line.strip(), fill=(0, 0, 0), font=font, anchor="mm")
         draw.text((540, y_text), line.strip(), fill=(255, 215, 0), font=font, anchor="mm")
-        y_text += 175
-    
-    # Handle add karna niche
-    draw.text((540, 1030), "@affan.ai.motivation", fill=(200, 200, 200), anchor="mm")
+        y_text += 180
+        
     return img
 
 def post_to_fb(image_obj, message):
     img_byte_arr = io.BytesIO()
     image_obj.save(img_byte_arr, format='JPEG', quality=95)
-    
     url = f"https://graph.facebook.com/{FB_PAGE_ID}/photos"
     payload = {'message': message, 'access_token': FB_ACCESS_TOKEN}
     files = {'source': ('post.jpg', img_byte_arr.getvalue(), 'image/jpeg')}
-    r = requests.post(url, data=payload, files=files)
-    print("Facebook Result:", r.json())
+    requests.post(url, data=payload, files=files)
 
 if __name__ == "__main__":
-    try:
-        quote, caption, tags = get_content()
-        full_caption = f"{caption}\n\n.\n.\n{tags}"
-        print(f"Generating post with quote: {quote}")
-        img = create_image(quote)
-        post_to_fb(img, full_caption)
-        print("Successfully Posted to Facebook!")
-    except Exception as e:
-        print(f"Final Execution Error: {e}")
+    q, c, t = get_content()
+    full_caption = f"{c}\n\n.\n.\n{t}"
+    img = create_image(q)
+    post_to_fb(img, full_caption)
+    print("Unique Post Done!")
