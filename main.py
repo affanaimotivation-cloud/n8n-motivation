@@ -1,66 +1,69 @@
 import os, requests, io, random, json, time
-from google import genai
+import google.generativeai as genai
 from PIL import Image, ImageDraw, ImageFont
 
 # 1. Config
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 FB_PAGE_ID = os.getenv("FB_PAGE_ID")
 FB_ACCESS_TOKEN = os.getenv("FB_ACCESS_TOKEN")
 
-# Aapke fixed trending hashtags
+# Fix Trending Tags
 FIXED_TAGS = "#motivation #success #viral #trending #reels #mindset #affan_ai_motivation #foryou #explore #attitude #power #alpha #money"
 
 def get_content():
-    # Dynamic prompt taaki content kabhi repeat na ho
+    # Temperature 1.0 ensures no repetition
+    model = genai.GenerativeModel('gemini-1.5-flash')
     try:
-        t_stamp = time.time()
-        prompt = (f"ID:{t_stamp}. Task: Write a brand new 2-line savage Hindi attitude quote. "
+        prompt = (f"Time:{time.time()}. Task: Write a brand new 2-line savage Hindi attitude quote. "
                   "STRICT: Do NOT use 'Mehnat', 'Pehchaan', 'Sher', 'Khamoshi'. "
-                  "Use aggressive words like 'Hukumat', 'Khauf', 'Badshah'. "
+                  "Use words like 'Sultanat', 'Dahshat', 'Hukumat', 'Takht'. "
                   "Return ONLY JSON: {\"quote\": \"...\", \"caption\": \"...\"}")
         
-        response = client.models.generate_content(model="gemini-1.5-flash", config={'temperature': 1.0}, contents=prompt)
+        response = model.generate_content(prompt, generation_config={"temperature": 1.0})
         data = json.loads(response.text.replace('```json', '').replace('```', '').strip())
         return data['quote'], data['caption']
     except:
-        return "अपना राज है, अपना अंदाज़ है, जो जलते हैं जलने दो।", "Living like a king."
+        return "अपना अंदाज़ अलग है, बराबरी करोगे तो बिखर जाओगे।", "Rule the world."
 
 def create_image(quote):
-    # Image fetching
+    # Dynamic Image Fetch
     img = Image.open(io.BytesIO(requests.get(f"https://picsum.photos/1080/1080?random={random.random()}").content))
-    
-    # Black Overlay (Transparent)
-    overlay = Image.new('RGBA', img.size, (0, 0, 0, 170))
+    overlay = Image.new('RGBA', img.size, (0, 0, 0, 180)) 
     img.paste(overlay, (0,0), overlay)
     draw = ImageDraw.Draw(img)
     
     try:
-        # Font size thoda chota kiya taaki bahar na jaye
-        font = ImageFont.truetype("hindifont.ttf", 95)
-        w_font = ImageFont.truetype("hindifont.ttf", 80) # Watermark size
+        # Font size 80 kiya taaki kitna bhi lamba quote ho bahar na jaye
+        font = ImageFont.truetype("hindifont.ttf", 80)
+        w_font = ImageFont.truetype("hindifont.ttf", 80) # Watermark Size
     except:
         font = w_font = ImageFont.load_default()
 
-    # Dynamic Text Wrap: Ek line mein sirf 12-14 characters
+    # Smart Wrap Logic: Max 18 characters per line
     words = quote.split()
     lines, current = [], ""
     for w in words:
-        if len(current + w) < 15: current += w + " "
-        else: lines.append(current.strip()); current = w + " "
+        if len(current + w) < 18:
+            current += w + " "
+        else:
+            lines.append(current.strip())
+            current = w + " "
     lines.append(current.strip())
 
-    # Auto-Centering: Gap ko lines ke hisaab se adjust kiya (95 ki jagah 130 step)
-    total_h = len(lines) * 130
-    y = (1080 - total_h) // 2 
+    # Middle Alignment (Text hamesha beech mein rahega)
+    line_h = 110
+    total_text_h = len(lines) * line_h
+    start_y = (1080 - total_text_h) // 2 
     
     for line in lines:
-        # Text shadow for clarity
-        draw.text((544, y + 4), line, fill=(0, 0, 0), font=font, anchor="mm")
-        draw.text((540, y), line, fill=(255, 215, 0), font=font, anchor="mm")
-        y += 130 # Gap kam kiya taaki image ke andar rahe
+        # Shadow
+        draw.text((542, start_y + 2), line, fill=(0, 0, 0), font=font, anchor="mm")
+        # Gold Text
+        draw.text((540, start_y), line, fill=(255, 215, 0), font=font, anchor="mm")
+        start_y += line_h
     
-    # Large Watermark
-    draw.text((540, 1000), "@affan.ai.motivation", fill=(255, 255, 255, 200), font=w_font, anchor="mm")
+    # Bada Watermark
+    draw.text((540, 1010), "@affan.ai.motivation", fill=(255, 255, 255, 180), font=w_font, anchor="mm")
     return img
 
 if __name__ == "__main__":
@@ -71,8 +74,8 @@ if __name__ == "__main__":
     buf = io.BytesIO()
     img.save(buf, format='JPEG', quality=95)
     
-    # FB Post
+    # Post to FB
     requests.post(f"https://graph.facebook.com/{FB_PAGE_ID}/photos", 
                   data={'message': full_cap, 'access_token': FB_ACCESS_TOKEN}, 
                   files={'source': buf.getvalue()})
-    print("Run Success: Text wrap fixed & Fresh Content Postively Posted!")
+    print("Post Successful: Import Fixed, Text Bound fixed!")
