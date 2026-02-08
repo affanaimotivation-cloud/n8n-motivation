@@ -3,78 +3,82 @@ import requests
 import io
 import random
 import time
-import google.generativeai as genai
+from google import genai
 from PIL import Image, ImageDraw, ImageFont
 
 # 1. Config (Secrets)
 FB_PAGE_ID = os.getenv("FB_PAGE_ID")
 FB_ACCESS_TOKEN = os.getenv("FB_ACCESS_TOKEN")
 GEMINI_KEY = os.getenv("GEMINI_API_KEY")
-UNSPLASH_KEY = os.getenv("UNSPLASH_ACCESS_KEY")
 
-# Purana import method jo aapke system mein kaam kar raha hai
-genai.configure(api_key=GEMINI_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash')
+# Gemini Client Setup
+client = genai.Client(api_key=GEMINI_KEY)
 
 def get_content():
-    # Random topics taaki content repeat na ho
-    topics = ["Discipline", "Focus", "High Ambition", "Wealth Creation", "Sacrifice", "Leadership"]
+    # Topics list for unique content
+    topics = ["Discipline", "Focus", "Hard Work", "Success Mindset", "Luxury Life", "Athlete Motivation"]
     chosen = random.choice(topics)
     try:
-        # Sakht instruction for 40+ tags and 10 lines caption
-        prompt = f"Write a powerful, unique Hindi motivational quote about {chosen}. Then write a 10-line deep inspirational caption in Hindi/Hinglish and 40 trending hashtags. Format: Quote | Caption | Tags"
-        response = model.generate_content(prompt)
+        # Prompt for 40+ hashtags and long caption
+        prompt = f"Write a powerful, unique Hindi motivational quote about {chosen}. Then write a 12-line deep inspirational caption in Hindi/Hinglish and 45 trending hashtags. Format: Quote | Caption | Tags"
+        response = client.models.generate_content(model="gemini-2.0-flash", contents=prompt)
         parts = response.text.strip().split('|')
         return parts[0].strip(), parts[1].strip(), parts[2].strip()
     except:
-        return "मेहनत का कोई विकल्प नहीं होता।", "Aaj se hi shuru karein!", "#motivation #success #quotes #viral #hindi"
+        return "ख्वाब बड़े देखो, मेहनत उससे भी बड़ी करो।", "Utho aur ladna shuru karo!", "#motivation #success #hindi #viral"
 
 def get_premium_image():
-    # Insaan, Nature aur Space ka mix
-    queries = ["entrepreneur", "fitness", "galaxy", "mountain", "luxury-car", "city-night"]
+    # Specific keywords for humans, space, and nature
+    queries = ["entrepreneur", "fitness", "luxury-car", "mountain-climbing", "galaxy", "office-work"]
     q = random.choice(queries)
     try:
-        # Sig parameter aur timeout fix taaki 'NoneType' error na aaye
+        # Most stable Direct Unsplash URL
         seed = random.randint(1, 10000)
-        url = f"https://images.unsplash.com/photo-1?auto=format&fit=crop&w=1080&h=1080&q=80&query={q}&sig={seed}"
+        url = f"https://source.unsplash.com/featured/1080x1080?{q}&sig={seed}"
         res = requests.get(url, timeout=30)
         if res.status_code == 200:
             return Image.open(io.BytesIO(res.content))
-    except Exception as e:
-        print(f"Image Error: {e}. Using backup.")
+    except:
+        print("Unsplash fetch failed, using Picsum backup.")
     
-    # Backup: Agar image download fail hui toh kaala parda nahi, solid dark color dega
-    return Image.new('RGB', (1080, 1080), color=(15, 20, 35))
+    # Backup: Picsum is extremely stable if Unsplash fails
+    try:
+        res = requests.get(f"https://picsum.photos/1080/1080?random={random.randint(1,500)}")
+        return Image.open(io.BytesIO(res.content))
+    except:
+        return Image.new('RGB', (1080, 1080), color=(10, 20, 30))
 
 def create_image(quote):
     img = get_premium_image()
-    # Crash protection: Ensure img has size
-    overlay = Image.new('RGBA', img.size, (0, 0, 0, 160)) 
+    # Adding a darker overlay for text clarity
+    overlay = Image.new('RGBA', img.size, (0, 0, 0, 150)) 
     img.paste(overlay, (0,0), overlay)
     
     draw = ImageDraw.Draw(img)
     try:
-        # Aapki uploaded font file
-        font = ImageFont.truetype("hindifont.ttf", 115) 
+        # Using the hindi font you uploaded
+        font = ImageFont.truetype("hindifont.ttf", 110) 
     except:
         font = ImageFont.load_default()
 
+    # Wrapping text
     words = quote.split()
     lines, current_line = [], ""
     for word in words:
-        if len(current_line + word) < 13: current_line += word + " "
+        if len(current_line + word) < 14: current_line += word + " "
         else:
             lines.append(current_line)
             current_line = word + " "
     lines.append(current_line)
 
+    # Drawing (Gold Text + Black Shadow)
     y_text = 540 - (len(lines) * 90)
     for line in lines:
         draw.text((546, y_text + 6), line.strip(), fill=(0, 0, 0), font=font, anchor="mm")
         draw.text((540, y_text), line.strip(), fill=(255, 215, 0), font=font, anchor="mm")
         y_text += 180
     
-    # Handle niche
+    # Large handle at the bottom
     draw.text((540, 1030), "@affan.ai.motivation", fill=(255, 255, 255), anchor="mm")
     return img
 
@@ -91,4 +95,4 @@ if __name__ == "__main__":
     full_caption = f"{c}\n\n.\n.\n{t}"
     img = create_image(q)
     post_to_fb(img, full_caption)
-    print("Success: Post done with original libraries!")
+    print("Unique Post Completed!")
