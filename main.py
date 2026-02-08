@@ -2,7 +2,7 @@ import os
 import requests
 import io
 import random
-import time
+import json
 import google.generativeai as genai
 from PIL import Image, ImageDraw, ImageFont
 
@@ -15,45 +15,49 @@ genai.configure(api_key=GEMINI_KEY)
 model = genai.GenerativeModel('gemini-1.5-flash')
 
 def get_content():
-    topics = ["Empire Building", "Hard Work", "Success Habits", "Never Give Up"]
+    topics = ["Empire Building", "Hard Work", "Success Mindset", "Consistency", "Winning Habits"]
     chosen = random.choice(topics)
     try:
-        # 10-15 hashtags only
-        prompt = f"Write a deep Hindi motivational quote about {chosen}. Then write a 10-line Hindi caption and 12 trending hashtags. Format: Quote | Caption | Tags"
+        # JSON format instruction taaki data mix na ho
+        prompt = (
+            f"Write a deep Hindi motivational quote about {chosen}. "
+            "Return only a JSON object with keys: 'quote', 'caption' (10 lines), and 'tags' (15 trending hashtags). "
+            "Example: {\"quote\": \"...\", \"caption\": \"...\", \"tags\": \"#... #...\"}"
+        )
         response = model.generate_content(prompt)
-        parts = response.text.strip().split('|')
-        return parts[0].strip(), parts[1].strip(), parts[2].strip()
-    except:
-        return "मेहनat इतनी खामोशी से करो कि सफलता शोर मचा दे।", "Keep working hard!", "#motivation #success"
+        # Safely cleaning the response text
+        clean_text = response.text.replace('```json', '').replace('```', '').strip()
+        data = json.loads(clean_text)
+        return data['quote'], data['caption'], data['tags']
+    except Exception as e:
+        print(f"Content error: {e}")
+        return "मेहनत का कोई विकल्प नहीं है।", "Utho aur badho!", "#motivation #success #viral #goals"
 
 def get_premium_image():
-    # Naya stable URL format
-    queries = ["fitness", "success", "luxury", "mountain", "galaxy", "office"]
-    q = random.choice(queries)
     try:
-        # Picsum sabse zyada stable hai aur kabhi None nahi deta
-        url = f"https://picsum.photos/1080/1080?random={random.randint(1,1000)}"
+        # Direct Picsum URL is most reliable
+        url = f"https://picsum.photos/1080/1080?random={random.randint(1,5000)}"
         res = requests.get(url, timeout=30)
         return Image.open(io.BytesIO(res.content))
     except:
-        # Agar net slow ho toh solid color background taaki crash na ho
-        return Image.new('RGB', (1080, 1080), color=(15, 20, 35))
+        return Image.new('RGB', (1080, 1080), color=(15, 20, 30))
 
 def create_image(quote):
     img = get_premium_image()
-    # Image size check taaki crash na ho
-    overlay = Image.new('RGBA', img.size, (0, 0, 0, 165)) 
+    overlay = Image.new('RGBA', img.size, (0, 0, 0, 175)) 
     img.paste(overlay, (0,0), overlay)
     
     draw = ImageDraw.Draw(img)
     try:
+        # Font settings
         font = ImageFont.truetype("hindifont.ttf", 110)
-        # Watermark size 85 (Bada aur saaf)
-        watermark_font = ImageFont.truetype("hindifont.ttf", 85) 
+        # Bada Watermark (Size 95)
+        watermark_font = ImageFont.truetype("hindifont.ttf", 95) 
     except:
         font = ImageFont.load_default()
         watermark_font = ImageFont.load_default()
 
+    # Text Wrapping
     words = quote.split()
     lines, current_line = [], ""
     for word in words:
@@ -69,8 +73,8 @@ def create_image(quote):
         draw.text((540, y_text), line.strip(), fill=(255, 215, 0), font=font, anchor="mm")
         y_text += 190
     
-    # Bada Watermark
-    draw.text((540, 1000), "@affan.ai.motivation", fill=(255, 255, 255, 200), font=watermark_font, anchor="mm")
+    # Large Watermark
+    draw.text((540, 1010), "@affan.ai.motivation", fill=(255, 255, 255, 215), font=watermark_font, anchor="mm")
     return img
 
 def post_to_fb(image_obj, message):
@@ -83,8 +87,8 @@ def post_to_fb(image_obj, message):
 
 if __name__ == "__main__":
     q, c, t = get_content()
-    # Caption handle add kiya
+    # Handle and full hashtags fixed
     full_caption = f"{c}\n\n👉 Follow for more: @affan.ai.motivation\n\n.\n.\n{t}"
     img = create_image(q)
     post_to_fb(img, full_caption)
-    print("Post Success!")
+    print("Task Completed Successfully!")
