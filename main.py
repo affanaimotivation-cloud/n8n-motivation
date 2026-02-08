@@ -3,6 +3,7 @@ import requests
 import io
 import random
 import json
+import time
 import google.generativeai as genai
 from PIL import Image, ImageDraw, ImageFont
 
@@ -12,36 +13,39 @@ FB_ACCESS_TOKEN = os.getenv("FB_ACCESS_TOKEN")
 GEMINI_KEY = os.getenv("GEMINI_API_KEY")
 
 genai.configure(api_key=GEMINI_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash')
 
 def get_content():
-    # Topics list for fresh content every time
-    topics = ["Empire Building", "Hard Work", "Success Mindset", "Consistency", "Winning Habits"]
+    # Diversified topics to prevent repetition
+    topics = ["Elite Athlete Discipline", "Deep Focus", "Financial Freedom", "Stoic Wisdom", "Success through Failure"]
     chosen = random.choice(topics)
+    # Adding timestamp for total uniqueness
+    timestamp = time.time()
+    
+    model = genai.GenerativeModel('gemini-1.5-flash')
     try:
-        # JSON format instruction for perfect parsing
+        # Strict instruction for JSON format and 15 tags
         prompt = (
-            f"Write a unique Hindi motivational quote about {chosen}. "
-            "Return ONLY a JSON object with these keys: 'quote', 'caption' (10 lines), and 'tags' (15 trending hashtags). "
-            "Do not include any other text."
+            f"Current Timestamp: {timestamp}. Topic: {chosen}. "
+            "Task: Write a brand new Hindi motivational quote. "
+            "Write a fresh 10-line caption. Provide 15 viral hashtags. "
+            "Return ONLY as JSON: {\"quote\": \"...\", \"caption\": \"...\", \"tags\": \"#...\"}"
         )
         response = model.generate_content(prompt)
-        # Cleaning and loading JSON
         clean_text = response.text.replace('```json', '').replace('```', '').strip()
         data = json.loads(clean_text)
         return data['quote'], data['caption'], data['tags']
     except:
-        # Fallback in case of error
-        return "मेहनत कभी बेकार नहीं जाती।", "लगातार प्रयास ही सफलता की कुंजी है।", "#motivation #success #viral #goals"
+        return "ख्वाबों के लिए मेहनत करो।", "Utho aur jeeto!", "#motivation #viral #success"
 
 def get_premium_image():
-    # Using Picsum for 100% stable background
     try:
-        url = f"https://picsum.photos/1080/1080?random={random.randint(1,5000)}"
+        # Using a very high seed to ensure different images
+        seed = random.randint(1, 99999)
+        url = f"https://picsum.photos/1080/1080?random={seed}"
         res = requests.get(url, timeout=30)
         return Image.open(io.BytesIO(res.content))
     except:
-        return Image.new('RGB', (1080, 1080), color=(15, 20, 30))
+        return Image.new('RGB', (1080, 1080), color=(10, 15, 25))
 
 def create_image(quote):
     img = get_premium_image()
@@ -50,15 +54,15 @@ def create_image(quote):
     
     draw = ImageDraw.Draw(img)
     try:
-        # Hindi font loading
+        # Font settings
         font = ImageFont.truetype("hindifont.ttf", 110)
-        # Increased Watermark Size to 95
-        watermark_font = ImageFont.truetype("hindifont.ttf", 95) 
+        # Bada Watermark Size 100 for better visibility
+        watermark_font = ImageFont.truetype("hindifont.ttf", 100) 
     except:
         font = ImageFont.load_default()
         watermark_font = ImageFont.load_default()
 
-    # Text wrapping
+    # Wrap logic
     words = quote.split()
     lines, current_line = [], ""
     for word in words:
@@ -75,7 +79,7 @@ def create_image(quote):
         y_text += 190
     
     # Large Clear Watermark
-    draw.text((540, 1010), "@affan.ai.motivation", fill=(255, 255, 255, 215), font=watermark_font, anchor="mm")
+    draw.text((540, 1000), "@affan.ai.motivation", fill=(255, 255, 255, 220), font=watermark_font, anchor="mm")
     return img
 
 def post_to_fb(image_obj, message):
@@ -92,4 +96,4 @@ if __name__ == "__main__":
     full_caption = f"{c}\n\n👉 Follow for more: @affan.ai.motivation\n\n.\n.\n{t}"
     img = create_image(q)
     post_to_fb(img, full_caption)
-    print("Task Success: New Content & 15 Tags!")
+    print("Unique Post Success!")
