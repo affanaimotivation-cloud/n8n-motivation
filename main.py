@@ -6,7 +6,7 @@ import time
 import google.generativeai as genai
 from PIL import Image, ImageDraw, ImageFont
 
-# 1. Configuration (Secrets)
+# 1. Configuration
 FB_PAGE_ID = os.getenv("FB_PAGE_ID")
 FB_ACCESS_TOKEN = os.getenv("FB_ACCESS_TOKEN")
 GEMINI_KEY = os.getenv("GEMINI_API_KEY")
@@ -16,45 +16,51 @@ model = genai.GenerativeModel('gemini-1.5-flash')
 
 def get_content():
     try:
-        # Long Caption aur 20 trending hashtags ki request
-        prompt = "Write 1 powerful motivational quote in HINDI. Then write a 6-line inspirational caption and 20 trending hashtags. Format: Quote | Caption | Tags"
+        prompt = "Write 1 powerful motivational quote in HINDI. Then write a 6-line inspirational caption and 20 hashtags. Format: Quote | Caption | Tags"
         response = model.generate_content(prompt)
         parts = response.text.strip().split('|')
         return parts[0].strip(), parts[1].strip(), parts[2].strip()
     except:
-        return "सफलता का रास्ता मेहनत से होकर गुजरता है।", "Stay motivated and keep working hard!", "#motivation #success #hindi #goals #inspiration"
+        return "सफलता का रास्ता मेहनत से होकर गुजरta है।", "Stay motivated!", "#motivation #success"
 
-def get_image_safe():
-    # Retry mechanism for Pollinations AI
-    for i in range(3):
-        try:
-            seed = random.randint(1, 999999)
-            url = f"https://pollinations.ai/p/dark-professional-motivation-background?width=1080&height=1080&seed={seed}"
-            response = requests.get(url, timeout=30)
-            if response.status_code == 200:
-                return Image.open(io.BytesIO(response.content))
-        except:
-            print(f"Attempt {i+1} failed. Retrying image download...")
-            time.sleep(5)
+def get_image_pro():
+    # Pollinations agar fail ho toh ye Picsum se high-quality nature image lega
+    keywords = ["nature", "mountain", "space", "dark-forest", "ocean"]
+    word = random.choice(keywords)
     
-    # Backup Background if generator fails
-    print("Using fallback solid background...")
-    return Image.new('RGB', (1080, 1080), color=(15, 15, 35))
+    # Method 1: Pollinations (AI Generated)
+    try:
+        seed = random.randint(1, 100000)
+        url = f"https://image.pollinations.ai/prompt/dark-cinematic-{word}-motivation-background?width=1080&height=1080&nologo=true&seed={seed}"
+        res = requests.get(url, timeout=20)
+        if res.status_code == 200:
+            return Image.open(io.BytesIO(res.content))
+    except:
+        print("Pollinations failed, trying stable source...")
+
+    # Method 2: Picsum (High Quality Real Photos - 100% Stable)
+    try:
+        url = f"https://picsum.photos/1080/1080?grayscale&blur=2" # Dark/Blur look for text clarity
+        res = requests.get(url, timeout=20)
+        return Image.open(io.BytesIO(res.content))
+    except:
+        # Last Resort: Dark Blue Gradient jaisa feel
+        return Image.new('RGB', (1080, 1080), color=(10, 20, 30))
 
 def create_image(quote):
-    img = get_image_safe()
+    img = get_image_pro()
     draw = ImageDraw.Draw(img)
 
-    # 2. Local Font Setup (Using the file you uploaded)
+    # Text readability ke liye halka sa dark layer upar se
+    overlay = Image.new('RGBA', img.size, (0, 0, 0, 100)) # 100 is transparency
+    img.paste(overlay, (0,0), overlay)
+
     try:
-        # Aapne naam 'hindifont.ttf' rakha hai
         font_path = "hindifont.ttf" 
-        font = ImageFont.truetype(font_path, 120) 
+        font = ImageFont.truetype(font_path, 110) 
     except:
-        print("Font file 'hindifont.ttf' nahi mili! Check your GitHub repo.")
         font = ImageFont.load_default()
 
-    # Text wrapping logic for large font
     words = quote.split()
     lines, current_line = [], ""
     for word in words:
@@ -65,35 +71,29 @@ def create_image(quote):
             current_line = word + " "
     lines.append(current_line)
 
-    # 3. Draw Gold Text with Black Shadow
-    y_text = 540 - (len(lines) * 85)
+    y_text = 540 - (len(lines) * 80)
     for line in lines:
-        # Shadow for readability
-        draw.text((546, y_text + 6), line.strip(), fill=(0, 0, 0), font=font, anchor="mm")
-        # Main Gold Text
+        # Shadow
+        draw.text((545, y_text + 5), line.strip(), fill=(0, 0, 0), font=font, anchor="mm")
+        # Main Text (Yellow/Gold)
         draw.text((540, y_text), line.strip(), fill=(255, 215, 0), font=font, anchor="mm")
-        y_text += 180
+        y_text += 160
     
-    # Page handle at bottom
-    draw.text((540, 1020), "@affan.ai.motivation", fill=(200, 200, 200), anchor="mm")
     return img
 
-def post_to_fb(image_obj, message):
-    img_byte_arr = io.BytesIO()
-    image_obj.save(img_byte_arr, format='JPEG', quality=95)
-    url = f"https://graph.facebook.com/{FB_PAGE_ID}/photos"
-    payload = {'message': message, 'access_token': FB_ACCESS_TOKEN}
-    files = {'source': ('post.jpg', img_byte_arr.getvalue(), 'image/jpeg')}
-    r = requests.post(url, data=payload, files=files)
-    print("Facebook API Response:", r.json())
+# ... post_to_fb function wahi rahega ...
 
 if __name__ == "__main__":
-    try:
-        q, c, t = get_content()
-        full_caption = f"{c}\n\n.\n.\n{t}"
-        print(f"Generating post for: {q}")
-        img = create_image(q)
-        post_to_fb(img, full_caption)
-        print("Job Successfully Completed!")
-    except Exception as e:
-        print(f"Final Execution Error: {e}")
+    q, c, t = get_content()
+    full_text = f"{c}\n\n.\n.\n{t}"
+    img = create_image(q)
+    # Save image for posting
+    img_byte_arr = io.BytesIO()
+    img.save(img_byte_arr, format='JPEG', quality=95)
+    
+    # Facebook post logic
+    url = f"https://graph.facebook.com/{FB_PAGE_ID}/photos"
+    payload = {'message': full_text, 'access_token': FB_ACCESS_TOKEN}
+    files = {'source': ('post.jpg', img_byte_arr.getvalue(), 'image/jpeg')}
+    requests.post(url, data=payload, files=files)
+    print("Post Completed!")
