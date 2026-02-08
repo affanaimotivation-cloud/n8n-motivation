@@ -3,7 +3,7 @@ import requests
 import io
 import random
 import time
-import google.generativeai as genai
+from google import genai
 from PIL import Image, ImageDraw, ImageFont
 
 # 1. Config (Secrets)
@@ -11,86 +11,67 @@ FB_PAGE_ID = os.getenv("FB_PAGE_ID")
 FB_ACCESS_TOKEN = os.getenv("FB_ACCESS_TOKEN")
 GEMINI_KEY = os.getenv("GEMINI_API_KEY")
 
-genai.configure(api_key=GEMINI_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash')
+client = genai.Client(api_key=GEMINI_KEY)
 
 def get_content():
-    # Topics ki list ko bada kiya taaki repeat na ho
-    topics = [
-        "Unstoppable Discipline", "Morning Energy", "Financial Freedom", 
-        "Handling Stress", "Power of Silence", "Growth Mindset", 
-        "Winning Alone", "Body Language", "Confidence"
-    ]
+    topics = ["High Performance", "Aggressive Success", "Stoic Mindset", "Consistency", "Wealth Creation"]
     chosen = random.choice(topics)
-    
-    # Har baar unique result ke liye current time ko seed ki tarah use kiya
-    current_time = time.strftime("%H:%M:%S")
-    
     try:
-        # Prompt mein temperature aur uniqueness add karne ke liye instructions badle hain
-        prompt = f"Topic: {chosen}. Time Context: {current_time}. Write a unique, powerful 2-line motivational quote in HINDI. Then write a 12-line deep inspirational caption and 40 trending hashtags. Format: Quote | Caption | Tags. IMPORTANT: Do not use the word 'Khwaab' or 'Sapne' every time."
-        
-        response = model.generate_content(prompt)
+        # Sakht instruction 50 trending hashtags ke liye taaki #tag kam na hon
+        prompt = f"Write a powerful Hindi motivational quote about {chosen}. Then write a 12-line deep inspirational caption. Finally, provide exactly 50 trending and viral hashtags. Format: Quote | Caption | Tags"
+        response = client.models.generate_content(model="gemini-2.0-flash", contents=prompt)
         parts = response.text.strip().split('|')
-        
-        if len(parts) >= 3:
-            return parts[0].strip(), parts[1].strip(), parts[2].strip()
-        else:
-            raise ValueError("Incomplete response from AI")
-            
-    except Exception as e:
-        print(f"Error fetching new content: {e}")
-        # Default backup ko bhi random bana diya taaki black background jaisa feel na aaye
-        backups = [
-            ("संघर्ष ही जीवन की असली कहानी है।", "Hausla mat haro!", "#motivation #hindi"),
-            ("वक्त बदलता है, बस मेहनत जारी रखो।", "Aage badhte raho!", "#success #viral"),
-            ("खुद पर विश्वास रखो, सब संभव है।", "Believe in yourself!", "#inspiration #goals")
-        ]
-        res = random.choice(backups)
-        return res[0], res[1], res[2]
+        return parts[0].strip(), parts[1].strip(), parts[2].strip()
+    except:
+        return "मेहनत का कोई विकल्प नहीं है।", "Keep pushing forward!", "#motivation #success #viral #trending"
 
 def get_premium_image():
-    queries = ["entrepreneur", "success", "fitness", "luxury", "dark-nature", "city-night", "working-man"]
+    queries = ["fitness-motivation", "entrepreneur-lifestyle", "luxury-homes", "mountains", "space-exploration"]
     q = random.choice(queries)
     try:
-        # Sig parameter ko bada kiya taaki image hamesha alag aaye
-        seed = random.randint(1, 99999)
+        seed = random.randint(1, 10000)
+        # Direct stable source taaki black background na aaye
         url = f"https://source.unsplash.com/featured/1080x1080?{q}&sig={seed}"
         res = requests.get(url, timeout=30)
-        return Image.open(io.BytesIO(res.content))
+        if res.status_code == 200:
+            return Image.open(io.BytesIO(res.content))
     except:
-        url = f"https://picsum.photos/1080/1080?random={random.randint(1,1000)}"
-        res = requests.get(url)
+        # Backup stable source
+        res = requests.get(f"https://picsum.photos/1080/1080?random={random.randint(1,500)}")
         return Image.open(io.BytesIO(res.content))
 
 def create_image(quote):
     img = get_premium_image()
-    overlay = Image.new('RGBA', img.size, (0, 0, 0, 160)) # Thoda dark overlay for clarity
+    overlay = Image.new('RGBA', img.size, (0, 0, 0, 150)) 
     img.paste(overlay, (0,0), overlay)
     
     draw = ImageDraw.Draw(img)
     try:
-        font = ImageFont.truetype("hindifont.ttf", 110) 
+        # Sahi font file path
+        font = ImageFont.truetype("hindifont.ttf", 110)
+        # Watermark ke liye bada font size
+        watermark_font = ImageFont.truetype("hindifont.ttf", 60) 
     except:
         font = ImageFont.load_default()
+        watermark_font = ImageFont.load_default()
 
     words = quote.split()
     lines, current_line = [], ""
     for word in words:
-        if len(current_line + word) < 13: current_line += word + " "
+        if len(current_line + word) < 14: current_line += word + " "
         else:
             lines.append(current_line)
             current_line = word + " "
     lines.append(current_line)
 
-    y_text = 540 - (len(lines) * 90)
+    y_text = 540 - (len(lines) * 95)
     for line in lines:
         draw.text((546, y_text + 6), line.strip(), fill=(0, 0, 0), font=font, anchor="mm")
         draw.text((540, y_text), line.strip(), fill=(255, 215, 0), font=font, anchor="mm")
-        y_text += 180
+        y_text += 190
     
-    # Niche aapka handle
-    draw.text((540, 1030), "@affan.ai.motivation", fill=(255, 255, 255), anchor="mm")
+    # 1. Image Watermark Bara Kiya (Size 60)
+    draw.text((540, 1010), "@affan.ai.motivation", fill=(255, 255, 255), font=watermark_font, anchor="mm")
     return img
 
 def post_to_fb(image_obj, message):
@@ -103,7 +84,8 @@ def post_to_fb(image_obj, message):
 
 if __name__ == "__main__":
     q, c, t = get_content()
-    full_cap = f"{c}\n\n.\n.\n{t}"
+    # 2. Caption mein "Follow for more" add kiya har post ke liye
+    full_caption = f"{c}\n\nFollow for more: @affan.ai.motivation\n\n.\n.\n{t}"
     img = create_image(q)
-    post_to_fb(img, full_cap)
-    print(f"Post Done! Topic was: {q[:20]}...")
+    post_to_fb(img, full_caption)
+    print("Post with 50 tags, larger watermark and follow-handle completed!")
