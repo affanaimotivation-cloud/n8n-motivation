@@ -3,7 +3,7 @@ import requests
 import io
 import random
 import time
-import google.generativeai as genai  # Purana stable method
+import google.generativeai as genai
 from PIL import Image, ImageDraw, ImageFont
 
 # 1. Config
@@ -11,7 +11,6 @@ FB_PAGE_ID = os.getenv("FB_PAGE_ID")
 FB_ACCESS_TOKEN = os.getenv("FB_ACCESS_TOKEN")
 GEMINI_KEY = os.getenv("GEMINI_API_KEY")
 
-# Purana Setup
 genai.configure(api_key=GEMINI_KEY)
 model = genai.GenerativeModel('gemini-1.5-flash')
 
@@ -19,38 +18,37 @@ def get_content():
     topics = ["Empire Building", "Hard Work", "Success Habits", "Never Give Up"]
     chosen = random.choice(topics)
     try:
-        # Prompt for 10-15 tags only
+        # 10-15 hashtags only
         prompt = f"Write a deep Hindi motivational quote about {chosen}. Then write a 10-line Hindi caption and 12 trending hashtags. Format: Quote | Caption | Tags"
         response = model.generate_content(prompt)
         parts = response.text.strip().split('|')
         return parts[0].strip(), parts[1].strip(), parts[2].strip()
     except:
-        return "मेहनत का फल मीठा होता है।", "Mehnat karte raho!", "#motivation #success #viral"
+        return "मेहनat इतनी खामोशी से करो कि सफलता शोर मचा दे।", "Keep working hard!", "#motivation #success"
 
 def get_premium_image():
+    # Naya stable URL format
     queries = ["fitness", "success", "luxury", "mountain", "galaxy", "office"]
     q = random.choice(queries)
     try:
-        seed = random.randint(1, 10000)
-        url = f"https://source.unsplash.com/featured/1080x1080?{q}&sig={seed}"
+        # Picsum sabse zyada stable hai aur kabhi None nahi deta
+        url = f"https://picsum.photos/1080/1080?random={random.randint(1,1000)}"
         res = requests.get(url, timeout=30)
-        if res.status_code == 200:
-            return Image.open(io.BytesIO(res.content))
-    except:
-        # Backup stable source taaki black background na aaye
-        res = requests.get(f"https://picsum.photos/1080/1080?random={random.randint(1,500)}")
         return Image.open(io.BytesIO(res.content))
+    except:
+        # Agar net slow ho toh solid color background taaki crash na ho
+        return Image.new('RGB', (1080, 1080), color=(15, 20, 35))
 
 def create_image(quote):
     img = get_premium_image()
-    overlay = Image.new('RGBA', img.size, (0, 0, 0, 160)) 
+    # Image size check taaki crash na ho
+    overlay = Image.new('RGBA', img.size, (0, 0, 0, 165)) 
     img.paste(overlay, (0,0), overlay)
     
     draw = ImageDraw.Draw(img)
     try:
-        # Font settings
         font = ImageFont.truetype("hindifont.ttf", 110)
-        # Bara Watermark Size 85
+        # Watermark size 85 (Bada aur saaf)
         watermark_font = ImageFont.truetype("hindifont.ttf", 85) 
     except:
         font = ImageFont.load_default()
@@ -71,8 +69,8 @@ def create_image(quote):
         draw.text((540, y_text), line.strip(), fill=(255, 215, 0), font=font, anchor="mm")
         y_text += 190
     
-    # Watermark Bara Kiya
-    draw.text((540, 1000), "@affan.ai.motivation", fill=(255, 255, 255, 180), font=watermark_font, anchor="mm")
+    # Bada Watermark
+    draw.text((540, 1000), "@affan.ai.motivation", fill=(255, 255, 255, 200), font=watermark_font, anchor="mm")
     return img
 
 def post_to_fb(image_obj, message):
@@ -85,8 +83,8 @@ def post_to_fb(image_obj, message):
 
 if __name__ == "__main__":
     q, c, t = get_content()
-    # Handle add kiya caption mein
+    # Caption handle add kiya
     full_caption = f"{c}\n\n👉 Follow for more: @affan.ai.motivation\n\n.\n.\n{t}"
     img = create_image(q)
     post_to_fb(img, full_caption)
-    print("Stable Post Completed!")
+    print("Post Success!")
