@@ -1,92 +1,91 @@
-import os, requests, io, random, json, time
-from google import genai 
+import os
+import requests
+import io
+import random
+import time
+import google.generativeai as genai
 from PIL import Image, ImageDraw, ImageFont
 
-# 1. API Client Setup
-client = genai.Client(
-    api_key=os.getenv("GEMINI_API_KEY"),
-    http_options={'api_version': 'v1'}
-)
-
+# 1. Config (Secrets)
 FB_PAGE_ID = os.getenv("FB_PAGE_ID")
 FB_ACCESS_TOKEN = os.getenv("FB_ACCESS_TOKEN")
-UNSPLASH_KEY = os.getenv("UNSPLASH_ACCESS_KEY")
+GEMINI_KEY = os.getenv("GEMINI_API_KEY")
+UNSPLASH_KEY = os.getenv("UNSPLASH_ACCESS_KEY") #
 
-FIXED_TAGS = "#motivation #success #viral #trending #reels #mindset #affan_ai_motivation #foryou #explore #attitude #power #alpha #money"
+genai.configure(api_key=GEMINI_KEY)
+model = genai.GenerativeModel('gemini-1.5-flash')
 
-def get_unique_content():
-    """Gemini se unique quote lane ke liye"""
+def get_content():
+    # Content repeat na ho isliye random topics
+    topics = ["Discipline", "Focus", "Hard Work", "Rich Mindset", "Overcoming Failure", "Patience"]
+    chosen = random.choice(topics)
     try:
-        # Simple prompt bina kisi syntax error ke
-        user_prompt = (f"Time:{time.time()}. Write a new 2-line savage Hindi attitude quote. "
-                       "STRICT: No 'Duniya', 'Pehchaan', 'Mehnat'. "
-                       "Return JSON ONLY: {\"quote\": \"...\", \"caption\": \"...\"}")
-        
-        # Sahi Model Path aur Version
-        response = client.models.generate_content(
-            model="models/gemini-1.5-flash-002", 
-            config={'temperature': 1.0}, 
-            contents=user_prompt
-        )
-        
-        raw_text = response.text.strip()
-        if "```json" in raw_text:
-            raw_text = raw_text.split("```json")[1].split("```")[0]
-        
-        data = json.loads(raw_text)
-        return data['quote'], data['caption']
-    except Exception as e:
-        print(f"Model Error: {e}")
-        return None, None
+        prompt = f"Write a deep, unique Hindi motivational quote about {chosen}. Then write a 10-line inspirational caption and 35 trending hashtags. Format: Quote | Caption | Tags"
+        response = model.generate_content(prompt)
+        parts = response.text.strip().split('|')
+        return parts[0].strip(), parts[1].strip(), parts[2].strip()
+    except:
+        return "ख्वाब बड़े देखो, मेहनत उससे भी बड़ी करो।", "Apne sapno ko pura karne ka waqt aa gaya hai!", "#motivation #success #hindi #viral"
+
+def get_premium_image():
+    # Human, Space, aur Nature ka random mix
+    queries = ["entrepreneur", "space", "galaxy", "man-success", "fitness", "dark-nature", "mountain-climb"]
+    q = random.choice(queries)
+    try:
+        # Direct URL method with random seed to prevent repeats
+        seed = random.randint(1, 1000)
+        url = f"https://source.unsplash.com/featured/1080x1080?{q}&sig={seed}"
+        res = requests.get(url, timeout=30)
+        return Image.open(io.BytesIO(res.content))
+    except:
+        # 2nd Option agar source down ho
+        url = f"https://picsum.photos/1080/1080?random={random.randint(1,500)}"
+        res = requests.get(url)
+        return Image.open(io.BytesIO(res.content))
 
 def create_image(quote):
-    """Unsplash se background lekar image banana"""
-    try:
-        img_url = f"[https://api.unsplash.com/photos/random?query=luxury,dark&client_id=](https://api.unsplash.com/photos/random?query=luxury,dark&client_id=){UNSPLASH_KEY}"
-        img_res = requests.get(img_url).json()
-        download_url = img_res['urls']['regular']
-        img = Image.open(io.BytesIO(requests.get(download_url).content)).resize((1080, 1080))
-    except:
-        img = Image.open(io.BytesIO(requests.get(f"[https://picsum.photos/1080/1080?random=](https://picsum.photos/1080/1080?random=){random.random()}").content))
-
-    overlay = Image.new('RGBA', img.size, (0, 0, 0, 195))
+    img = get_premium_image()
+    # Dark Tint for clarity
+    overlay = Image.new('RGBA', img.size, (0, 0, 0, 140))
     img.paste(overlay, (0,0), overlay)
+    
     draw = ImageDraw.Draw(img)
-    
     try:
-        font = ImageFont.truetype("hindifont.ttf", 80)
-        w_font = ImageFont.truetype("hindifont.ttf", 100) 
+        # Sahi font loading
+        font = ImageFont.truetype("hindifont.ttf", 115) 
     except:
-        font = w_font = ImageFont.load_default()
+        font = ImageFont.load_default()
 
+    # Text wrapping logic
     words = quote.split()
-    lines, current = [], ""
-    for w in words:
-        if len(current + w) < 18: current += w + " "
-        else: lines.append(current.strip()); current = w + " "
-    lines.append(current.strip())
+    lines, current_line = [], ""
+    for word in words:
+        if len(current_line + word) < 13: current_line += word + " "
+        else:
+            lines.append(current_line)
+            current_line = word + " "
+    lines.append(current_line)
 
-    y = (1080 - (len(lines) * 115)) // 2 
+    # Drawing Text (Gold + Black Shadow)
+    y_text = 540 - (len(lines) * 90)
     for line in lines:
-        draw.text((543, y + 3), line, fill=(0, 0, 0), font=font, anchor="mm")
-        draw.text((540, y), line, fill=(255, 215, 0), font=font, anchor="mm")
-        y += 115
-    
-    draw.text((540, 1010), "@affan.ai.motivation", fill=(255, 255, 255, 170), font=w_font, anchor="mm")
+        draw.text((546, y_text + 6), line.strip(), fill=(0, 0, 0), font=font, anchor="mm")
+        draw.text((540, y_text), line.strip(), fill=(255, 215, 0), font=font, anchor="mm")
+        y_text += 180
+        
     return img
 
+def post_to_fb(image_obj, message):
+    img_byte_arr = io.BytesIO()
+    image_obj.save(img_byte_arr, format='JPEG', quality=95)
+    url = f"https://graph.facebook.com/{FB_PAGE_ID}/photos"
+    payload = {'message': message, 'access_token': FB_ACCESS_TOKEN}
+    files = {'source': ('post.jpg', img_byte_arr.getvalue(), 'image/jpeg')}
+    requests.post(url, data=payload, files=files)
+
 if __name__ == "__main__":
-    q, c = get_unique_content()
-    if q and c:
-        full_cap = f"{c}\n\n👉 Follow: @affan.ai.motivation\n\n.\n.\n{FIXED_TAGS}"
-        final_img = create_image(q)
-        buf = io.BytesIO()
-        final_img.save(buf, format='JPEG', quality=95)
-        
-        # Facebook Post logic
-        res = requests.post(f"[https://graph.facebook.com/](https://graph.facebook.com/){FB_PAGE_ID}/photos", 
-                            data={'message': full_cap, 'access_token': FB_ACCESS_TOKEN}, 
-                            files={'source': buf.getvalue()})
-        print("Success!" if res.status_code == 200 else f"Failed: {res.text}")
-    else:
-        print("Model issue persisted.")
+    q, c, t = get_content()
+    full_cap = f"{c}\n\n.\n.\n{t}"
+    img = create_image(q)
+    post_to_fb(img, full_cap)
+    print("Task Done!")
