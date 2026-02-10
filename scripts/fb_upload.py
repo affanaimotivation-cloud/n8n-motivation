@@ -1,21 +1,33 @@
-# ---------------- STEP 2: TRANSFER ----------------
-upload_url = upload_url.strip("[]")  # markdown issue fix
+import os
+import requests
 
-with open(video_path, "rb") as f:
-    headers = {
-        "Authorization": f"OAuth {PAGE_TOKEN}",
-        "Content-Type": "application/octet-stream",
-        "file_offset": "0"
+GRAPH_VERSION = "v18.0"
+
+def upload_video(video_path, caption=""):
+    PAGE_ID = os.getenv("FB_PAGE_ID")
+    PAGE_TOKEN = os.getenv("FB_PAGE_TOKEN")
+
+    if not PAGE_ID or not PAGE_TOKEN:
+        raise ValueError("FB_PAGE_ID ya FB_PAGE_TOKEN missing hai")
+
+    file_size = os.path.getsize(video_path)
+
+    # ---------------- STEP 1: START ----------------
+    start_url = f"https://graph.facebook.com/{GRAPH_VERSION}/{PAGE_ID}/video_reels"
+    start_payload = {
+        "access_token": PAGE_TOKEN,
+        "upload_phase": "start",
+        "file_size": file_size
     }
 
-    transfer_res = requests.post(
-        upload_url,
-        headers=headers,
-        data=f
-    )
+    start_res = requests.post(start_url, data=start_payload).json()
+    print("START RESPONSE:", start_res)
 
-print("TRANSFER STATUS:", transfer_res.status_code)
-print("TRANSFER RESPONSE:", transfer_res.text)
+    if "video_id" not in start_res or "upload_url" not in start_res:
+        raise Exception("Upload start failed")
 
-if transfer_res.status_code not in (200, 201):
-    raise Exception("Video transfer failed")
+    video_id = start_res["video_id"]
+    upload_url = start_res["upload_url"]
+
+    # ✅ markdown / bracket fix (YAHI jagah sahi hai)
+    upload_url = upload_url.strip("
