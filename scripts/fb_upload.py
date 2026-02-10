@@ -29,19 +29,25 @@ def upload_video(video_path, caption=""):
     video_id = start_res["video_id"]
     upload_url = start_res["upload_url"].strip("[]")
 
-    # ================= STEP 2: TRANSFER =================
-    with open(video_path, "rb") as video:
-        headers = {
-            "Authorization": f"OAuth {PAGE_TOKEN}",
-            "Content-Type": "application/octet-stream",
-            "file_offset": "0"
-        }
+    #================= STEP 2: TRANSFER =================
+with open(video_path, "rb") as video:
+    headers = {
+        "Authorization": f"OAuth {PAGE_TOKEN}",
+        "Content-Type": "application/octet-stream",
+        "Offset": "0"   # ✅ यही सबसे बड़ा fix है
+    }
 
-        transfer_res = requests.post(
-            upload_url,
-            headers=headers,
-            data=video
-        )
+    transfer_res = requests.post(
+        upload_url,
+        headers=headers,
+        data=video
+    )
+
+print("TRANSFER STATUS:", transfer_res.status_code)
+print("TRANSFER RESPONSE:", transfer_res.text)
+
+if transfer_res.status_code not in (200, 201):
+    raise Exception("Video transfer failed")
 
     print("TRANSFER STATUS:", transfer_res.status_code)
     print("TRANSFER RESPONSE:", transfer_res.text)
