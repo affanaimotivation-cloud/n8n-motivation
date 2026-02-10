@@ -1,9 +1,17 @@
-def create_subtitles(text):
-    srt = f"""1
-00:00:01,000 --> 00:00:06,000
-{text}
-"""
-    with open("subtitles.srt", "w", encoding="utf-8") as f:
-        f.write(srt)
+from gtts import gTTS
+import os
 
-    return "subtitles.srt"
+def create_voice(text, output_path="voice.mp3", lang="hi"):
+    """
+    Hindi voiceover create karta hai
+    """
+    if not text:
+        raise ValueError("Text empty hai, voice nahi ban sakti")
+
+    tts = gTTS(text=text, lang=lang)
+    tts.save(output_path)
+
+    if not os.path.exists(output_path):
+        raise RuntimeError("Voice file create nahi hui")
+
+    return output_path
