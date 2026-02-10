@@ -29,7 +29,7 @@ def upload_video(video_path, caption=""):
     video_id = start_res["video_id"]
     upload_url = start_res["upload_url"].strip("[]")
 
-    #================= STEP 2: TRANSFER =================
+    # ================= STEP 2: TRANSFER =================
 with open(video_path, "rb") as video:
     headers = {
         "Authorization": f"OAuth {PAGE_TOKEN}",
