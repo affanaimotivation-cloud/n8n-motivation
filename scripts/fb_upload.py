@@ -12,52 +12,41 @@ def upload_video(video_path, caption=""):
 
     file_size = os.path.getsize(video_path)
 
-    # ========== STEP 1: START ==========
+    # STEP 1: START
     start_url = f"https://graph.facebook.com/{GRAPH_VERSION}/{PAGE_ID}/video_reels"
     start_payload = {
         "access_token": PAGE_TOKEN,
         "upload_phase": "start",
         "file_size": file_size
     }
-
     start_res = requests.post(start_url, data=start_payload).json()
-    print("START RESPONSE:", start_res)
-
-    if "video_id" not in start_res or "upload_url" not in start_res:
-        raise Exception("Upload start failed")
+    
+    if "video_id" not in start_res:
+        raise Exception(f"Start failed: {start_res}")
 
     video_id = start_res["video_id"]
-    upload_url = start_res["upload_url"].strip("[]")
+    upload_url = start_res["upload_url"]
 
-    # ========== STEP 2: TRANSFER ==========
+    # STEP 2: TRANSFER (यहाँ सुधार किया गया है)
     with open(video_path, "rb") as video:
         headers = {
             "Authorization": f"OAuth {PAGE_TOKEN}",
             "Content-Type": "application/octet-stream",
-            "Offset": "0"
+            "Offset": "0",
+            "Content-Length": str(file_size) # फिक्स: फाइल साइज बताना ज़रूरी है
         }
-
-        transfer_res = requests.post(
-            upload_url,
-            headers=headers,
-            data=video
-        )
-
-    print("TRANSFER STATUS:", transfer_res.status_code)
-    print("TRANSFER RESPONSE:", transfer_res.text)
+        transfer_res = requests.post(upload_url, headers=headers, data=video)
 
     if transfer_res.status_code not in (200, 201):
+        print("TRANSFER RESPONSE:", transfer_res.text)
         raise Exception("Video transfer failed")
 
-    # ========== STEP 3: FINISH ==========
+    # STEP 3: FINISH
     finish_payload = {
         "access_token": PAGE_TOKEN,
         "upload_phase": "finish",
         "video_id": video_id,
         "description": caption
     }
-    
-    # यहाँ स्पेसिंग ठीक कर दी गई है
     finish_res = requests.post(start_url, data=finish_payload).json()
-    print("FINISH RESPONSE:", finish_res)
     return finish_res
