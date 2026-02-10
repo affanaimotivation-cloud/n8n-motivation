@@ -1,36 +1,33 @@
-name: FB Video Post Workflow
+name: FB Video Post
 
 on:
-  workflow_dispatch:        # Manual Run (Button se)
+  workflow_dispatch:   # 👈 Manual run
   schedule:
-    - cron: "0 7 * * *"     # Daily subah 7 baje (UTC)
+    - cron: "0 7 * * *"   # Daily 7 AM UTC (12:30 PM IST approx)
 
 jobs:
   post-video:
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ Repo code checkout
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # 2️⃣ Python setup
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: "3.10"
 
-      # 3️⃣ FFmpeg install (video + audio ke liye जरूरी)
       - name: Install FFmpeg
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
 
-      # 4️⃣ Python dependencies install
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # 5️⃣ Run main video script
       - name: Run video post script
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
