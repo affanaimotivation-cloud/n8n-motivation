@@ -12,7 +12,7 @@ def upload_video(video_path, caption=""):
 
     file_size = os.path.getsize(video_path)
 
-    # ---------------- STEP 1: START ----------------
+    # ---------- STEP 1: START ----------
     start_url = f"https://graph.facebook.com/{GRAPH_VERSION}/{PAGE_ID}/video_reels"
     start_payload = {
         "access_token": PAGE_TOKEN,
@@ -28,8 +28,9 @@ def upload_video(video_path, caption=""):
 
     video_id = start_res["video_id"]
     upload_url = start_res["upload_url"]
-video_id = start_res["video_id"]
-upload_url = start_res["upload_url"]
 
-# ✅ markdown / bracket fix
-upload_url = upload_url.strip("[]")
+    # bracket / markdown fix
+    upload_url = upload_url.strip("[]")
+
+    # ---------- STEP 2: TRANSFER ----------
+    with
