@@ -3,7 +3,12 @@ import requests
 
 GRAPH_VERSION = "v24.0"
 
+
 def upload_video(video_path, caption=""):
+    """
+    Upload video as Facebook Reel
+    """
+
     PAGE_ID = os.getenv("FB_PAGE_ID")
     PAGE_TOKEN = os.getenv("FB_PAGE_TOKEN")
 
@@ -15,14 +20,14 @@ def upload_video(video_path, caption=""):
 
     file_size = os.path.getsize(video_path)
 
-    if file_size == 0:
-        raise ValueError("Video file size 0 hai — upload fail hoga")
+    if file_size < 1000:
+        raise ValueError("Video file invalid ya bahut choti hai")
 
-    print("File size:", file_size)
+    print("Uploading File Size:", file_size)
 
-    # ===============================
-    # STEP 1: START UPLOAD
-    # ===============================
+    # =====================================
+    # STEP 1️⃣ START PHASE
+    # =====================================
     start_url = f"https://graph.facebook.com/{GRAPH_VERSION}/{PAGE_ID}/video_reels"
 
     start_payload = {
@@ -43,9 +48,9 @@ def upload_video(video_path, caption=""):
     video_id = start_json["video_id"]
     upload_url = start_json["upload_url"]
 
-    # ===============================
-    # STEP 2: TRANSFER (STREAMING FIX)
-    # ===============================
+    # =====================================
+    # STEP 2️⃣ TRANSFER PHASE
+    # =====================================
     headers = {
         "Authorization": f"OAuth {PAGE_TOKEN}",
         "Offset": "0",
@@ -56,7 +61,7 @@ def upload_video(video_path, caption=""):
         transfer_res = requests.post(
             upload_url,
             headers=headers,
-            data=video_file   # IMPORTANT: stream file directly
+            data=video_file
         )
 
     print("TRANSFER STATUS:", transfer_res.status_code)
@@ -65,9 +70,9 @@ def upload_video(video_path, caption=""):
     if transfer_res.status_code not in (200, 201):
         raise Exception("Video transfer failed")
 
-    # ===============================
-    # STEP 3: FINISH
-    # ===============================
+    # =====================================
+    # STEP 3️⃣ FINISH PHASE
+    # =====================================
     finish_payload = {
         "access_token": PAGE_TOKEN,
         "upload_phase": "finish",
@@ -85,4 +90,5 @@ def upload_video(video_path, caption=""):
     if finish_res.status_code != 200:
         raise Exception(f"Finish failed: {finish_json}")
 
+    print("✅ Reel Successfully Uploaded!")
     return finish_json
