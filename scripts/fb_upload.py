@@ -1,7 +1,8 @@
 import os
 import requests
 
-GRAPH_VERSION = "v18.0"
+# आपने सही पकड़ा, वर्शन अपडेट कर दिया है
+GRAPH_VERSION = "v24.0" 
 
 def upload_video(video_path, caption=""):
     PAGE_ID = os.getenv("FB_PAGE_ID")
@@ -10,7 +11,7 @@ def upload_video(video_path, caption=""):
     if not PAGE_ID or not PAGE_TOKEN:
         raise ValueError("FB_PAGE_ID ya FB_PAGE_TOKEN missing hai")
 
-    # वीडियो फाइल को बाइट्स में पढ़ना ताकि साइज सही जाए
+    # फाइल को बाइट्स में पढ़ना ताकि साइज एकदम सही जाए
     with open(video_path, "rb") as f:
         video_data = f.read()
     
@@ -33,12 +34,12 @@ def upload_video(video_path, caption=""):
     video_id = start_res["video_id"]
     upload_url = start_res["upload_url"]
 
-    # STEP 2: TRANSFER (यहाँ 'Content-Length' को फिक्स किया गया है)
+    # STEP 2: TRANSFER (यहाँ 'Content-Length' को सख्ती से जोड़ा गया है)
     headers = {
         "Authorization": f"OAuth {PAGE_TOKEN}",
         "Content-Type": "application/octet-stream",
         "Offset": "0",
-        "Content-Length": str(file_size) # फेसबुक को साइज बताना अनिवार्य है
+        "Content-Length": str(file_size) # फेसबुक v24.0 के लिए यह अनिवार्य है
     }
 
     transfer_res = requests.post(upload_url, headers=headers, data=video_data)
@@ -53,7 +54,8 @@ def upload_video(video_path, caption=""):
         "access_token": PAGE_TOKEN,
         "upload_phase": "finish",
         "video_id": video_id,
-        "description": caption
+        "description": caption,
+        "video_state": "PUBLISHED" # वीडियो को सीधा पब्लिश करने के लिए
     }
     
     finish_res = requests.post(start_url, data=finish_payload).json()
