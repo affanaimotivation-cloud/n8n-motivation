@@ -1,8 +1,7 @@
 import os
 import requests
 
-# हमने एरर के हिसाब से वर्शन v24.0 सेट कर दिया है
-GRAPH_VERSION = "v24.0" 
+GRAPH_VERSION = "v24.0"
 
 def upload_video(video_path, caption=""):
     PAGE_ID = os.getenv("FB_PAGE_ID")
@@ -11,47 +10,64 @@ def upload_video(video_path, caption=""):
     if not PAGE_ID or not PAGE_TOKEN:
         raise ValueError("FB_PAGE_ID ya FB_PAGE_TOKEN missing hai")
 
-    # फाइल का साइज निकालें
+    if not os.path.exists(video_path):
+        raise FileNotFoundError(f"Video file not found: {video_path}")
+
     file_size = os.path.getsize(video_path)
 
-    # STEP 1: START
+    if file_size == 0:
+        raise ValueError("Video file size 0 hai — upload fail hoga")
+
+    print("File size:", file_size)
+
+    # ===============================
+    # STEP 1: START UPLOAD
+    # ===============================
     start_url = f"https://graph.facebook.com/{GRAPH_VERSION}/{PAGE_ID}/video_reels"
+
     start_payload = {
         "access_token": PAGE_TOKEN,
         "upload_phase": "start",
         "file_size": file_size
     }
-    
-    start_res = requests.post(start_url, data=start_payload).json()
-    print("START RESPONSE:", start_res)
 
-    if "video_id" not in start_res:
-        raise Exception(f"Upload start failed: {start_res}")
+    start_res = requests.post(start_url, data=start_payload)
+    start_json = start_res.json()
 
-    video_id = start_res["video_id"]
-    upload_url = start_res["upload_url"]
+    print("START STATUS:", start_res.status_code)
+    print("START RESPONSE:", start_json)
 
-    # STEP 2: TRANSFER (यहाँ असली जादू है)
-    # हम फाइल को सीधा 'data=f' के बजाय 'f.read()' करके बाइट्स में भेजेंगे
-    with open(video_path, "rb") as f:
-        video_data = f.read()
+    if start_res.status_code != 200 or "video_id" not in start_json:
+        raise Exception(f"Upload start failed: {start_json}")
 
+    video_id = start_json["video_id"]
+    upload_url = start_json["upload_url"]
+
+    # ===============================
+    # STEP 2: TRANSFER (STREAMING FIX)
+    # ===============================
     headers = {
         "Authorization": f"OAuth {PAGE_TOKEN}",
         "Offset": "0",
-        "Content-Type": "application/octet-stream",
-        "Content-Length": str(len(video_data)) # फेसबुक की डिमांड पूरी
+        "Content-Type": "application/octet-stream"
     }
 
-    # 'data=video_data' भेजने से पायथन Content-Length को डिलीट नहीं कर पाता
-    transfer_res = requests.post(upload_url, headers=headers, data=video_data)
-    
-    print(f"TRANSFER STATUS: {transfer_res.status_code}")
+    with open(video_path, "rb") as video_file:
+        transfer_res = requests.post(
+            upload_url,
+            headers=headers,
+            data=video_file   # IMPORTANT: stream file directly
+        )
+
+    print("TRANSFER STATUS:", transfer_res.status_code)
+    print("TRANSFER RESPONSE:", transfer_res.text)
+
     if transfer_res.status_code not in (200, 201):
-        print("TRANSFER RESPONSE:", transfer_res.text)
         raise Exception("Video transfer failed")
 
+    # ===============================
     # STEP 3: FINISH
+    # ===============================
     finish_payload = {
         "access_token": PAGE_TOKEN,
         "upload_phase": "finish",
@@ -59,7 +75,14 @@ def upload_video(video_path, caption=""):
         "description": caption,
         "video_state": "PUBLISHED"
     }
-    
-    finish_res = requests.post(start_url, data=finish_payload).json()
-    print("FINISH RESPONSE:", finish_res)
-    return finish_res
+
+    finish_res = requests.post(start_url, data=finish_payload)
+    finish_json = finish_res.json()
+
+    print("FINISH STATUS:", finish_res.status_code)
+    print("FINISH RESPONSE:", finish_json)
+
+    if finish_res.status_code != 200:
+        raise Exception(f"Finish failed: {finish_json}")
+
+    return finish_json
