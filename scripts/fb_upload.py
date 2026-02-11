@@ -10,8 +10,11 @@ def upload_video(video_path, caption=""):
     if not PAGE_ID or not PAGE_TOKEN:
         raise ValueError("FB_PAGE_ID ya FB_PAGE_TOKEN missing hai")
 
-    # फाइल का साइज निकालें
-    file_size = os.path.getsize(video_path)
+    # फाइल को बाइट्स में पढ़ना (इससे Content-Length की समस्या खत्म हो जाती है)
+    with open(video_path, "rb") as f:
+        video_data = f.read()
+    
+    file_size = len(video_data)
 
     # STEP 1: START
     start_url = f"https://graph.facebook.com/{GRAPH_VERSION}/{PAGE_ID}/video_reels"
@@ -25,25 +28,22 @@ def upload_video(video_path, caption=""):
     print("START RESPONSE:", start_res)
 
     if "video_id" not in start_res:
-        raise Exception(f"Upload start failed: {start_res}")
+        raise Exception(f"Start failed: {start_res}")
 
     video_id = start_res["video_id"]
     upload_url = start_res["upload_url"]
 
-    # STEP 2: TRANSFER (यहाँ सुधार किया गया है)
-    with open(video_path, "rb") as f:
-        video_data = f.read() # पूरी फाइल को बाइट्स में पढ़ लें
-
+    # STEP 2: TRANSFER (यहाँ "Content-Length" हाथ से सेट किया गया है)
     headers = {
         "Authorization": f"OAuth {PAGE_TOKEN}",
         "Content-Type": "application/octet-stream",
         "Offset": "0",
-        "Content-Length": str(len(video_data)) # फेसबुक को बताना ज़रूरी है कि डेटा कितना बड़ा है
+        "Content-Length": str(file_size) # फेसबुक को साइज बताना अनिवार्य है
     }
 
     transfer_res = requests.post(upload_url, headers=headers, data=video_data)
-
     print("TRANSFER STATUS:", transfer_res.status_code)
+
     if transfer_res.status_code not in (200, 201):
         print("TRANSFER RESPONSE:", transfer_res.text)
         raise Exception("Video transfer failed")
