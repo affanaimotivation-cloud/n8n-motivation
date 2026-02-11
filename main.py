@@ -1,48 +1,62 @@
 import os
-import time
+from moviepy.editor import ImageClip, AudioFileClip
 from scripts.fb_upload import upload_video
 
-def create_video():
-    """
-    यहाँ आपका वीडियो बनाने का लॉजिक आएगा।
-    अभी के लिए, हम मान रहे हैं कि 'video.mp4' पहले से मौजूद है 
-    या कोई दूसरी प्रोसेस इसे बना रही है।
-    """
-    video_file = "video.mp4" # अपनी वीडियो फाइल का नाम यहाँ लिखें
+def create_reel():
+    print("--- 🎬 वीडियो बनाना शुरू हो रहा है ---")
     
-    if not os.path.exists(video_file):
-        # अगर आप MoviePy इस्तेमाल कर रहे हैं, तो सुनिश्चित करें कि 
-        # clip.write_videofile(video_file) यहाँ पूरी तरह रन हुआ हो।
-        print(f"Error: {video_file} ढूंढने में असफल!")
+    # अपनी फाइलों के नाम यहाँ चेक करें
+    image_path = "background.jpg"  # आपकी फोटो
+    audio_path = "audio.mp3"        # आपका म्यूजिक/ऑडियो
+    output_path = "final_reel.mp4"  # जो वीडियो बनेगा
+    
+    # चेक करें कि फाइलें मौजूद हैं या नहीं
+    if not os.path.exists(image_path) or not os.path.exists(audio_path):
+        print(f"Error: {image_path} या {audio_path} नहीं मिल रही!")
         return None
+
+    try:
+        # 1. ऑडियो लोड करें
+        audio = AudioFileClip(audio_path)
         
-    return video_file
+        # 2. इमेज लोड करें और उसकी लंबाई ऑडियो जितनी रखें
+        clip = ImageClip(image_path).set_duration(audio.duration)
+        
+        # 3. ऑडियो को इमेज के साथ जोड़ें
+        clip = clip.set_audio(audio)
+        
+        # 4. वीडियो को सेव करें (Facebook Reels के लिए 30fps बेस्ट है)
+        print("Rendering video... इसमें थोड़ा समय लग सकता है।")
+        clip.write_videofile(output_path, fps=24, codec="libx264", audio_codec="aac")
+        
+        # रेंडरिंग के बाद फाइल साइज चेक करें
+        size = os.path.getsize(output_path)
+        print(f"Video created successfully: {size} bytes")
+        
+        return output_path
+    except Exception as e:
+        print(f"Rendering Error: {e}")
+        return None
 
 def main():
-    print("--- Process Start ---")
+    # स्टेप 1: वीडियो बनाएं
+    video_file = create_reel()
     
-    # 1. वीडियो फाइल प्राप्त करें
-    video_path = create_video()
-    
-    if video_path:
-        # 2. वीडियो का साइज चेक करें (ताकि 111 bytes वाला एरर न आए)
-        file_size = os.path.getsize(video_path)
-        print(f"Video File Found: {video_path} ({file_size} bytes)")
-        
-        if file_size < 1000: # 1KB से छोटी फाइल मतलब वीडियो खराब है
-            print("Error: वीडियो फाइल बहुत छोटी या करप्ट है। पोस्टिंग कैंसल।")
-            return
-
-        # 3. फेसबुक पर अपलोड करें
-        caption = "My Awesome Reel! #motivation #reels #ai"
-        try:
-            print("Uploading to Facebook...")
-            response = upload_video(video_path, caption)
-            print("SUCCESS! Post Response:", response)
-        except Exception as e:
-            print(f"FAILED! Error: {str(e)}")
-    
-    print("--- Process End ---")
+    if video_file:
+        # स्टेप 2: साइज चेक करें ताकि 111 bytes वाला एरर न आए
+        if os.path.getsize(video_file) > 1000:
+            caption = "Amazing AI Reel 🚀 #reels #automation #python"
+            
+            try:
+                print("Facebook पर अपलोड किया जा रहा है...")
+                response = upload_video(video_file, caption)
+                print("🎉 मुबारक हो! रील पोस्ट हो गई:", response)
+            except Exception as e:
+                print(f"❌ अपलोड फेल हो गया: {e}")
+        else:
+            print("🛑 वीडियो फाइल बहुत छोटी (corrupt) है।")
+    else:
+        print("❌ वीडियो नहीं बन पाया।")
 
 if __name__ == "__main__":
     main()
